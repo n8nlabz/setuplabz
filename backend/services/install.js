@@ -9,6 +9,10 @@ class InstallService {
     return crypto.randomBytes(len).toString("base64url").slice(0, len);
   }
 
+  static hostRule(domain) {
+    return "Host(" + "`" + domain + "`" + ")";
+  }
+
   static loadConfig() {
     try {
       if (fs.existsSync(CONFIG_PATH)) {
@@ -55,13 +59,13 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+        - "traefik.http.routers.portainer.rule=${this.hostRule(c.domain_portainer)}"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+      - "traefik.http.routers.portainer.rule=${this.hostRule(c.domain_portainer)}"
       - "traefik.http.routers.portainer.entrypoints=websecure"
       - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
@@ -121,13 +125,13 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+        - "traefik.http.routers.portainer.rule=${this.hostRule(c.domain_portainer)}"
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+      - "traefik.http.routers.portainer.rule=${this.hostRule(c.domain_portainer)}"
       - "traefik.http.routers.portainer.entrypoints=websecure"
       - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
@@ -172,13 +176,13 @@ services:
     deploy:
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.n8n.rule=Host(\`${c.domain_n8n}\`)"
+        - "traefik.http.routers.n8n.rule=${this.hostRule(c.domain_n8n)}"
         - "traefik.http.routers.n8n.entrypoints=websecure"
         - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
         - "traefik.http.services.n8n.loadbalancer.server.port=5678"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.n8n.rule=Host(\`${c.domain_n8n}\`)"
+      - "traefik.http.routers.n8n.rule=${this.hostRule(c.domain_n8n)}"
       - "traefik.http.routers.n8n.entrypoints=websecure"
       - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
@@ -239,13 +243,13 @@ services:
     deploy:
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.evolution.rule=Host(\`${c.domain_evolution}\`)"
+        - "traefik.http.routers.evolution.rule=${this.hostRule(c.domain_evolution)}"
         - "traefik.http.routers.evolution.entrypoints=websecure"
         - "traefik.http.routers.evolution.tls.certresolver=letsencrypt"
         - "traefik.http.services.evolution.loadbalancer.server.port=8080"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.evolution.rule=Host(\`${c.domain_evolution}\`)"
+      - "traefik.http.routers.evolution.rule=${this.hostRule(c.domain_evolution)}"
       - "traefik.http.routers.evolution.entrypoints=websecure"
       - "traefik.http.routers.evolution.tls.certresolver=letsencrypt"
       - "traefik.http.services.evolution.loadbalancer.server.port=8080"
