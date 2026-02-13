@@ -1,6 +1,6 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════╗
-# ║           N8N LABZ Setup Panel - Instalador v1.0            ║
+# ║           N8N LABZ Setup Panel - Instalador v2.0            ║
 # ╚══════════════════════════════════════════════════════════════╝
 set -e
 
@@ -10,6 +10,7 @@ MAGENTA='\033[0;35m'
 
 INSTALL_DIR="/opt/n8nlabz"
 REPO_URL="https://github.com/n8nlabz/setup-panel"
+CONFIG_FILE="$INSTALL_DIR/config.json"
 
 banner() {
   clear
@@ -21,7 +22,7 @@ banner() {
   echo '  ██║ ╚████║╚█████╔╝██║ ╚████║    ███████╗██║  ██║██████╔╝███████╗'
   echo '  ╚═╝  ╚═══╝ ╚════╝ ╚═╝  ╚═══╝    ╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝'
   echo -e "${NC}"
-  echo -e "  ${BOLD}Setup Panel Installer v1.0${NC}"
+  echo -e "  ${BOLD}Setup Panel Installer v2.0${NC}"
   echo -e "  ${CYAN}Automação simplificada para sua VPS${NC}\n"
 }
 
@@ -35,6 +36,34 @@ log_step() { echo -e "\n  ${MAGENTA}▸${NC} ${BOLD}$1${NC}"; }
 [ "$EUID" -ne 0 ] && { log_err "Execute como root: sudo bash install.sh"; exit 1; }
 
 banner
+
+# ── Perguntar domínio e email ──
+log_step "Configuração de domínio"
+echo ""
+read -p "  Qual seu domínio base? (ex: seudominio.com): " BASE_DOMAIN
+
+while [ -z "$BASE_DOMAIN" ]; do
+  log_warn "Domínio base é obrigatório."
+  read -p "  Qual seu domínio base? (ex: seudominio.com): " BASE_DOMAIN
+done
+
+# Remover protocolo se digitado
+BASE_DOMAIN=$(echo "$BASE_DOMAIN" | sed 's|https\?://||' | sed 's|/||g')
+
+read -p "  Qual seu email para SSL? (Let's Encrypt): " SSL_EMAIL
+
+while [ -z "$SSL_EMAIL" ]; do
+  log_warn "Email SSL é obrigatório."
+  read -p "  Qual seu email para SSL? (Let's Encrypt): " SSL_EMAIL
+done
+
+DASHBOARD_DOMAIN="dashboard.${BASE_DOMAIN}"
+
+echo ""
+log_ok "Domínio base: ${BASE_DOMAIN}"
+log_ok "Email SSL: ${SSL_EMAIL}"
+log_ok "Painel: ${DASHBOARD_DOMAIN}"
+echo ""
 
 # ── Docker ──
 log_step "Docker"
@@ -67,21 +96,80 @@ else
   log_ok "network_public criada"
 fi
 
-# ── Node.js ──
-log_step "Node.js"
-if command -v node &>/dev/null; then
-  log_ok "Node.js $(node --version)"
+# ── Salvar config ──
+log_step "Configuração"
+mkdir -p "$INSTALL_DIR"/{backups,data}
+
+cat > "$CONFIG_FILE" <<EOF
+{
+  "domain_base": "${BASE_DOMAIN}",
+  "email_ssl": "${SSL_EMAIL}",
+  "dashboard_domain": "${DASHBOARD_DOMAIN}",
+  "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+
+log_ok "Configuração salva em ${CONFIG_FILE}"
+
+# ── Traefik ──
+log_step "Traefik (Proxy Reverso + SSL)"
+SWARM_MODE=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null)
+IS_SWARM="false"
+[ "$SWARM_MODE" = "active" ] && IS_SWARM="true"
+
+TRAEFIK_COMPOSE="/tmp/traefik-compose.yml"
+cat > "$TRAEFIK_COMPOSE" <<EOF
+version: "3.8"
+services:
+  traefik:
+    image: traefik:v2.11
+    command:
+      - "--api.dashboard=false"
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=${IS_SWARM}"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=network_public"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${SSL_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--log.level=ERROR"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_certs:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - network_public
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  traefik_certs:
+
+networks:
+  network_public:
+    external: true
+EOF
+
+log_info "Fazendo deploy do Traefik..."
+if [ "$IS_SWARM" = "true" ]; then
+  docker stack deploy -c "$TRAEFIK_COMPOSE" traefik >/dev/null 2>&1
 else
-  log_info "Instalando Node.js 20..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
-  apt-get install -y nodejs >/dev/null 2>&1
-  log_ok "Node.js $(node --version)"
+  docker compose -f "$TRAEFIK_COMPOSE" -p traefik up -d >/dev/null 2>&1
 fi
+rm -f "$TRAEFIK_COMPOSE"
+log_ok "Traefik rodando com SSL via Let's Encrypt"
 
 # ── Download Panel ──
 log_step "N8N LABZ Panel"
-mkdir -p "$INSTALL_DIR"/{backups,data}
-
 if [ -d "$INSTALL_DIR/.git" ]; then
   log_info "Atualizando..."
   cd "$INSTALL_DIR" && git pull >/dev/null 2>&1
@@ -100,56 +188,83 @@ else
   fi
 fi
 
-# ── Install deps ──
-if [ -f "$INSTALL_DIR/backend/package.json" ]; then
-  log_info "Instalando dependências do backend..."
-  cd "$INSTALL_DIR/backend" && npm install --production >/dev/null 2>&1
-  log_ok "Backend pronto"
+# ── Build e deploy como container Docker ──
+log_step "Build do painel Docker"
+
+# Remover serviço systemd antigo se existir
+if systemctl is-enabled n8nlabz-panel &>/dev/null 2>&1; then
+  log_info "Removendo serviço systemd antigo..."
+  systemctl stop n8nlabz-panel >/dev/null 2>&1 || true
+  systemctl disable n8nlabz-panel >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/n8nlabz-panel.service
+  systemctl daemon-reload >/dev/null 2>&1
 fi
 
-if [ -f "$INSTALL_DIR/frontend/package.json" ]; then
-  log_info "Instalando e buildando frontend..."
-  cd "$INSTALL_DIR/frontend" && npm install >/dev/null 2>&1 && npx vite build >/dev/null 2>&1
-  log_ok "Frontend buildado"
+if [ -f "$INSTALL_DIR/Dockerfile" ]; then
+  log_info "Buildando imagem Docker do painel..."
+  cd "$INSTALL_DIR" && docker build -t n8nlabz-panel:latest . >/dev/null 2>&1
+  log_ok "Imagem buildada"
+else
+  log_err "Dockerfile não encontrado em $INSTALL_DIR"
+  exit 1
 fi
 
-# ── Systemd ──
-log_step "Serviço do sistema"
-cat > /etc/systemd/system/n8nlabz-panel.service <<EOF
-[Unit]
-Description=N8N LABZ Setup Panel
-After=network.target docker.service
-Requires=docker.service
+# ── Deploy do painel atrás do Traefik ──
+log_step "Deploy do painel"
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/node backend/server.js
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-Environment=PORT=3080
+PANEL_COMPOSE="/tmp/panel-compose.yml"
+cat > "$PANEL_COMPOSE" <<EOF
+version: "3.8"
+services:
+  n8nlabz_panel:
+    image: n8nlabz-panel:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${INSTALL_DIR}/config.json:/opt/n8nlabz/config.json
+      - ${INSTALL_DIR}/tokens.json:/opt/n8nlabz/tokens.json
+      - ${INSTALL_DIR}/backups:/opt/n8nlabz/backups
+    environment:
+      - NODE_ENV=production
+      - PORT=3080
+    networks:
+      - network_public
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.n8nlabz.rule=Host(\`${DASHBOARD_DOMAIN}\`)"
+        - "traefik.http.routers.n8nlabz.entrypoints=websecure"
+        - "traefik.http.routers.n8nlabz.tls.certresolver=letsencrypt"
+        - "traefik.http.services.n8nlabz.loadbalancer.server.port=3080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8nlabz.rule=Host(\`${DASHBOARD_DOMAIN}\`)"
+      - "traefik.http.routers.n8nlabz.entrypoints=websecure"
+      - "traefik.http.routers.n8nlabz.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8nlabz.loadbalancer.server.port=3080"
 
-[Install]
-WantedBy=multi-user.target
+networks:
+  network_public:
+    external: true
 EOF
 
-systemctl daemon-reload
-systemctl enable n8nlabz-panel >/dev/null 2>&1
-systemctl restart n8nlabz-panel >/dev/null 2>&1
-log_ok "Painel rodando na porta 3080"
+# Garantir que tokens.json exista
+touch "$INSTALL_DIR/tokens.json" 2>/dev/null || true
 
-# ── Domínio (opcional) ──
-echo ""
-echo -e "  ${BOLD}Configurar domínio para o painel? (opcional)${NC}"
-read -p "  Domínio (ou Enter pra pular): " PANEL_DOMAIN
-
-if [ -n "$PANEL_DOMAIN" ]; then
-  read -p "  Email para SSL: " SSL_EMAIL
-  # O Traefik será configurado quando o usuário instalar via painel
-  log_ok "Domínio configurado: $PANEL_DOMAIN"
+log_info "Fazendo deploy do painel..."
+if [ "$IS_SWARM" = "true" ]; then
+  docker stack deploy -c "$PANEL_COMPOSE" panel >/dev/null 2>&1
+else
+  docker compose -f "$PANEL_COMPOSE" -p panel up -d >/dev/null 2>&1
 fi
+rm -f "$PANEL_COMPOSE"
+log_ok "Painel rodando em https://${DASHBOARD_DOMAIN}"
+
+# ── Aguardar estabilização ──
+log_info "Aguardando containers estabilizarem..."
+sleep 8
 
 # ── Summary ──
 IP=$(curl -s --max-time 5 ifconfig.me || hostname -I | awk '{print $1}')
@@ -158,21 +273,25 @@ echo -e "  ═══════════════════════
 echo -e "  ${GREEN}${BOLD}✅ Instalação concluída!${NC}"
 echo ""
 echo -e "  ${BOLD}Acesse o painel:${NC}"
-echo -e "  ${CYAN}➜  http://${IP}:3080${NC}"
-if [ -n "$PANEL_DOMAIN" ]; then
-  echo -e "  ${CYAN}➜  https://${PANEL_DOMAIN}${NC} (após configurar DNS)"
-fi
+echo -e "  ${CYAN}➜  https://${DASHBOARD_DOMAIN}${NC}"
+echo ""
+echo -e "  ${BOLD}Domínio base:${NC} ${BASE_DOMAIN}"
+echo -e "  ${BOLD}Subdomínios sugeridos:${NC}"
+echo -e "  ${CYAN}  • Portainer:  portainer.${BASE_DOMAIN}${NC}"
+echo -e "  ${CYAN}  • n8n:        n8n.${BASE_DOMAIN}${NC}"
+echo -e "  ${CYAN}  • Evolution:  evolution.${BASE_DOMAIN}${NC}"
+echo ""
+echo -e "  ${YELLOW}⚠  Configure o DNS dos subdomínios apontando para: ${IP}${NC}"
 echo ""
 echo -e "  ${BOLD}No primeiro acesso:${NC}"
 echo -e "  O painel gera um token admin automaticamente."
 echo -e "  ${YELLOW}Guarde esse token! Ele é sua chave de acesso.${NC}"
 echo ""
-echo -e "  ${BOLD}Comandos:${NC}"
-echo -e "  ${CYAN}systemctl status n8nlabz-panel${NC}   — Status"
-echo -e "  ${CYAN}systemctl restart n8nlabz-panel${NC}  — Reiniciar"
-echo -e "  ${CYAN}journalctl -u n8nlabz-panel -f${NC}   — Logs"
+echo -e "  ${BOLD}Comandos úteis:${NC}"
+echo -e "  ${CYAN}docker logs -f \$(docker ps -q -f name=n8nlabz_panel)${NC}  — Logs"
+echo -e "  ${CYAN}docker ps -f name=n8nlabz${NC}                             — Status"
 echo ""
 echo -e "  ═══════════════════════════════════════════════════════"
-echo -e "  ${RED}N8N LABZ${NC} — Comunidade de Automação 🚀"
+echo -e "  ${RED}N8N LABZ${NC} — Comunidade de Automação"
 echo -e "  ═══════════════════════════════════════════════════════"
 echo ""

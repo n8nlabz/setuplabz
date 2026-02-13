@@ -7,6 +7,11 @@ router.get("/status", (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get("/suggestions", (req, res) => {
+  try { res.json(InstallService.getSuggestedSubdomains()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post("/:toolId", async (req, res) => {
   try {
     const result = await InstallService.installTool(req.params.toolId, req.body, null);

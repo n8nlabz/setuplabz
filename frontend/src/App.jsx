@@ -204,9 +204,22 @@ function InstallPage() {
   const [installing, setInstalling] = useState(null);
   const [installed, setInstalled] = useState([]);
   const [logs, setLogs] = useState([{ time: '--:--:--', text: 'N8N LABZ Setup pronto.', type: 'info' }]);
+  const [domainBase, setDomainBase] = useState(null);
 
   useEffect(() => {
     api('/install/status').then((d) => setInstalled(d.installed || [])).catch(() => {});
+    api('/install/suggestions').then((suggestions) => {
+      if (suggestions && suggestions.domain_portainer) {
+        setDomainBase(true);
+        setFormData((prev) => {
+          const merged = { ...prev };
+          Object.keys(suggestions).forEach((key) => {
+            if (!merged[key]) merged[key] = suggestions[key];
+          });
+          return merged;
+        });
+      }
+    }).catch(() => {});
   }, []);
 
   const toggle = (id) => {
@@ -248,7 +261,10 @@ function InstallPage() {
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, letterSpacing: '-0.02em' }}>Instalar Ferramentas</h1>
-      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>Selecione, configure e instale com 1 clique.</p>
+      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>
+        Selecione, configure e instale com 1 clique.
+        {domainBase && <span style={{ display: 'block', fontSize: 11, color: colors.green, marginTop: 6, fontFamily: mono }}>Subdomínios pré-preenchidos com base no seu domínio.</span>}
+      </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 28 }}>
         {TOOLS.map((tool) => {

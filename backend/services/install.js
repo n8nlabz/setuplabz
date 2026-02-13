@@ -1,19 +1,87 @@
 const DockerService = require("./docker");
 const crypto = require("crypto");
+const fs = require("fs");
+
+const CONFIG_PATH = "/opt/n8nlabz/config.json";
 
 class InstallService {
   static genPass(len = 24) {
     return crypto.randomBytes(len).toString("base64url").slice(0, len);
   }
 
+  static loadConfig() {
+    try {
+      if (fs.existsSync(CONFIG_PATH)) {
+        return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      }
+    } catch {}
+    return {};
+  }
+
+  static getSuggestedSubdomains() {
+    const config = this.loadConfig();
+    const base = config.domain_base;
+    if (!base) return {};
+    return {
+      domain_portainer: `portainer.${base}`,
+      domain_n8n: `n8n.${base}`,
+      domain_evolution: `evolution.${base}`,
+      email_ssl: config.email_ssl || "",
+    };
+  }
+
+  static isTraefikRunning() {
+    const containers = DockerService.listContainers();
+    return containers.some((c) => c.name.toLowerCase().includes("traefik") && c.state === "running");
+  }
+
   static getTraefikPortainerCompose(c) {
-    const baseDomain = c.domain_portainer.replace(/^portainer\./, "");
+    const traefikRunning = this.isTraefikRunning();
+
+    // Se o Traefik já está rodando (instalado pelo install.sh), só instala Portainer
+    if (traefikRunning) {
+      return `version: "3.8"
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - network_public
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+        - "traefik.http.routers.portainer.entrypoints=websecure"
+        - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+        - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+volumes:
+  portainer_data:
+
+networks:
+  network_public:
+    external: true
+`;
+    }
+
+    // Instalação completa (Traefik + Portainer) para uso sem o install.sh
     return `version: "3.8"
 services:
   traefik:
     image: traefik:v2.11
     command:
-      - "--api.dashboard=true"
+      - "--api.dashboard=false"
       - "--providers.docker=true"
       - "--providers.docker.swarmMode=${DockerService.isSwarmActive()}"
       - "--providers.docker.exposedbydefault=false"
@@ -57,6 +125,12 @@ services:
         - "traefik.http.routers.portainer.entrypoints=websecure"
         - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
         - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(\`${c.domain_portainer}\`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
 
 volumes:
   traefik_certs:
@@ -102,6 +176,12 @@ services:
         - "traefik.http.routers.n8n.entrypoints=websecure"
         - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
         - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(\`${c.domain_n8n}\`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
 
   n8n_postgres:
     image: postgres:16-alpine
@@ -163,6 +243,12 @@ services:
         - "traefik.http.routers.evolution.entrypoints=websecure"
         - "traefik.http.routers.evolution.tls.certresolver=letsencrypt"
         - "traefik.http.services.evolution.loadbalancer.server.port=8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.evolution.rule=Host(\`${c.domain_evolution}\`)"
+      - "traefik.http.routers.evolution.entrypoints=websecure"
+      - "traefik.http.routers.evolution.tls.certresolver=letsencrypt"
+      - "traefik.http.services.evolution.loadbalancer.server.port=8080"
 
   evolution_postgres:
     image: postgres:16-alpine
