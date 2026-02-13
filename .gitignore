@@ -1,0 +1,7 @@
+node_modules/
+frontend/dist/
+.env
+*.log
+/opt/n8nlabz/backups/
+/opt/n8nlabz/tokens.json
+/opt/n8nlabz/data/

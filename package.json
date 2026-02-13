@@ -1,0 +1,17 @@
+{
+  "name": "n8nlabz-setup-panel",
+  "version": "1.0.0",
+  "description": "N8N LABZ Setup Panel - Instalador e gerenciador de ferramentas",
+  "private": true,
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev:backend": "cd backend && node server.js",
+    "dev:frontend": "cd frontend && npx vite --host",
+    "build:frontend": "cd frontend && npx vite build",
+    "build": "npm run build:frontend",
+    "postinstall": "cd frontend && npm install"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
