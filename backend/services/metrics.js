@@ -2,6 +2,7 @@ const DockerService = require("./docker");
 const fs = require("fs");
 
 const METRICS_PATH = "/opt/n8nlabz/metrics.json";
+const ENVIRONMENTS_PATH = "/opt/n8nlabz/environments.json";
 const MAX_REALTIME_POINTS = 120; // 1h at 30s intervals
 const MAX_DISK_DAYS = 30;
 
@@ -22,13 +23,55 @@ class MetricsService {
     fs.writeFileSync(METRICS_PATH, JSON.stringify(data, null, 2));
   }
 
+  static getEnvPrefixes() {
+    try {
+      if (fs.existsSync(ENVIRONMENTS_PATH)) {
+        const envs = JSON.parse(fs.readFileSync(ENVIRONMENTS_PATH, "utf-8"));
+        return (envs || []).map((e) => (e.name || "").toLowerCase() + "_");
+      }
+    } catch {}
+    return [];
+  }
+
   static collectRealtimeStats() {
     try {
       const info = DockerService.getSystemInfo();
-      const cpuIdle = DockerService.run(
-        "top -bn1 | grep 'Cpu(s)' | awk '{print $8}' 2>/dev/null || echo '0'"
-      );
-      const cpuUsage = Math.round(100 - parseFloat(cpuIdle || "0"));
+      let cpuUsage = 0;
+
+      try {
+        const stats = DockerService.getAllStats();
+        const envPrefixes = this.getEnvPrefixes();
+        const cpuCount = info.cpu_count || parseInt(DockerService.run("nproc")) || 1;
+
+        const filtered = stats.filter((s) => {
+          const name = s.name.toLowerCase();
+          // Exclude test environment containers
+          if (envPrefixes.some((p) => name.startsWith(p))) return false;
+          // Parse CPU value
+          const cpuVal = parseFloat((s.cpu || "0").replace("%", ""));
+          // Exclude containers with abnormal CPU (>99% = likely restart loop)
+          if (cpuVal > 99) return false;
+          return true;
+        });
+
+        const totalCpu = filtered.reduce((sum, s) => {
+          return sum + parseFloat((s.cpu || "0").replace("%", ""));
+        }, 0);
+
+        // Docker stats CPU% is per-core, normalize to total system
+        cpuUsage = Math.round(totalCpu / cpuCount);
+        cpuUsage = Math.min(cpuUsage, 100);
+      } catch {
+        // Fallback: system top
+        try {
+          const cpuIdle = DockerService.run(
+            "top -bn1 | grep 'Cpu(s)' | awk '{print $8}' 2>/dev/null || echo '0'"
+          );
+          cpuUsage = Math.round(100 - parseFloat(cpuIdle || "0"));
+        } catch {
+          cpuUsage = 0;
+        }
+      }
 
       const point = {
         time: new Date().toLocaleTimeString("pt-BR", { hour12: false }).slice(0, 5),
@@ -102,7 +145,7 @@ class MetricsService {
     this.collectRealtimeStats();
     this.collectDiskStats();
 
-    console.log("[METRICS] Coleta de métricas iniciada (30s CPU/RAM, 1h disco).");
+    console.log("[METRICS] Coleta de metricas iniciada (30s CPU/RAM, 1h disco).");
   }
 }
 

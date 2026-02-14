@@ -225,7 +225,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.2
+            SETUP PANEL v2.3
           </div>
         </div>
 
@@ -259,6 +259,7 @@ function DashboardPage() {
   const [metricsData, setMetricsData] = useState({ realtime: [], disk: [] });
   const [creds, setCreds] = useState(null);
   const [versionModal, setVersionModal] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -291,10 +292,52 @@ function DashboardPage() {
     fetchCredentials().then(setCreds).catch(() => {});
   }, []);
 
+  // Helper: parse container base name (before first dot = swarm replica suffix)
+  const parseBase = (name) => { const d = name.indexOf('.'); return d > 0 ? name.slice(0, d) : name; };
+
+  // Helper: filter only main stack containers (exclude test envs)
+  const getMainContainers = (toolId) => {
+    return containers.filter((c) => {
+      const base = parseBase(c.name).toLowerCase();
+      if (toolId === 'portainer') return base.startsWith('portainer_');
+      if (toolId === 'n8n') return base.startsWith('n8n_') && !base.includes('n8nlabz');
+      if (toolId === 'evolution') return base.startsWith('evolution_');
+      return false;
+    });
+  };
+
+  const restartTool = async (toolId) => {
+    setActionLoading(toolId);
+    try {
+      const toolContainers = getMainContainers(toolId).filter((c) => c.state === 'running');
+      for (const c of toolContainers) {
+        await api(`/containers/${c.id}/restart`, { method: 'POST' });
+      }
+      await refresh();
+    } catch {}
+    setActionLoading(null);
+  };
+
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
 
   const running = containers.filter((c) => c.state === 'running').length;
   const ramPerc = sysInfo ? Math.round((sysInfo.ram_used_mb / sysInfo.ram_total_mb) * 100) : 0;
+
+  // Smart greeting
+  const getGreeting = () => {
+    if (installed.length === 0) return 'Visao geral do seu servidor.';
+    const statuses = installed.map((toolId) => {
+      const tc = getMainContainers(toolId);
+      const anyRunning = tc.some((c) => c.state === 'running');
+      return { toolId, anyRunning };
+    });
+    const allOk = statuses.every((s) => s.anyRunning);
+    const allDown = statuses.every((s) => !s.anyRunning);
+    if (allOk) return 'Tudo funcionando normalmente. Seus servicos estao online.';
+    if (allDown) return 'Atencao: nenhum servico esta respondendo. Verifique o monitoramento.';
+    const down = statuses.filter((s) => !s.anyRunning).map((s) => TOOLS.find((t) => t.id === s.toolId)?.name || s.toolId);
+    return `Atencao: ${down.join(', ')} ${down.length === 1 ? 'esta parado' : 'estao parados'}.`;
+  };
 
   const chartTooltipStyle = {
     contentStyle: { background: '#1a1a2e', border: `1px solid ${colors.border}`, borderRadius: 8, fontFamily: mono, fontSize: 11 },
@@ -304,7 +347,7 @@ function DashboardPage() {
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Dashboard</h1>
-      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>Visao geral do seu servidor.</p>
+      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>{getGreeting()}</p>
 
       {/* Server Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
@@ -340,15 +383,22 @@ function DashboardPage() {
 
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>Uso de disco (30 dias)</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={metricsData.disk}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: colors.textDim, fontFamily: mono }} stroke="rgba(255,255,255,0.06)" />
-              <YAxis tick={{ fontSize: 10, fill: colors.textDim, fontFamily: mono }} stroke="rgba(255,255,255,0.06)" unit="%" />
-              <RechartsTooltip {...chartTooltipStyle} />
-              <Area type="monotone" dataKey="percentageNum" stroke={colors.yellow} fill={colors.yellow + '20'} strokeWidth={2} name="Disco %" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {metricsData.disk.length === 0 ? (
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 28, opacity: 0.3 }}>📊</div>
+              <div style={{ fontSize: 12, color: colors.textDim, fontFamily: mono, textAlign: 'center' }}>Dados de disco serao coletados nas proximas horas.</div>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={metricsData.disk}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: colors.textDim, fontFamily: mono }} stroke="rgba(255,255,255,0.06)" />
+                <YAxis tick={{ fontSize: 10, fill: colors.textDim, fontFamily: mono }} stroke="rgba(255,255,255,0.06)" unit="%" />
+                <RechartsTooltip {...chartTooltipStyle} />
+                <Area type="monotone" dataKey="percentageNum" stroke={colors.yellow} fill={colors.yellow + '20'} strokeWidth={2} name="Disco %" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </Card>
       </div>
 
@@ -367,14 +417,8 @@ function DashboardPage() {
           {installed.map((toolId) => {
             const tool = TOOLS.find((t) => t.id === toolId);
             if (!tool) return null;
-            const toolContainers = containers.filter((c) => {
-              const n = c.name.toLowerCase();
-              if (toolId === 'portainer') return n.includes('portainer_portainer') || n.includes('portainer_agent');
-              if (toolId === 'n8n') return n.includes('n8n_') && !n.includes('n8nlabz');
-              if (toolId === 'evolution') return n.includes('evolution_');
-              return false;
-            });
-            const allRunning = toolContainers.length > 0 && toolContainers.every((c) => c.state === 'running');
+            const toolContainers = getMainContainers(toolId);
+            const anyRunning = toolContainers.some((c) => c.state === 'running');
             const mainContainer = toolContainers.find((c) => {
               const n = c.name.toLowerCase();
               return !n.includes('redis') && !n.includes('agent');
@@ -391,7 +435,7 @@ function DashboardPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, fontFamily: mono }}>{tool.name}</div>
-                    <StatusBadge status={allRunning ? 'running' : 'stopped'} />
+                    <StatusBadge status={anyRunning ? 'running' : 'stopped'} />
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: colors.textMuted, fontFamily: mono, marginBottom: 2 }}>
@@ -400,7 +444,7 @@ function DashboardPage() {
                 <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, marginBottom: 14 }}>
                   {toolContainers.length} container{toolContainers.length !== 1 ? 's' : ''}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {openUrl && (
                     <a href={openUrl} target="_blank" rel="noopener noreferrer" style={{
                       padding: '6px 14px', borderRadius: 10, fontSize: 11, fontWeight: 600, fontFamily: mono,
@@ -410,6 +454,9 @@ function DashboardPage() {
                       Abrir
                     </a>
                   )}
+                  <Btn variant="ghost" onClick={() => restartTool(toolId)} loading={actionLoading === toolId} style={{ padding: '6px 14px', fontSize: 11 }}>
+                    Reiniciar
+                  </Btn>
                   <Btn variant="ghost" onClick={() => setVersionModal(toolId)} style={{ padding: '6px 14px', fontSize: 11 }}>
                     Alterar versao
                   </Btn>
@@ -904,14 +951,21 @@ function MonitorPage() {
   // ── Helpers ──
   const parseBase = (name) => { const d = name.indexOf('.'); return d > 0 ? name.slice(0, d) : name; };
 
+  // Main stack prefixes
+  const mainPrefixes = ['n8n_', 'evolution_', 'portainer_', 'postgres_', 'traefik_', 'panel_', 'n8nlabz'];
+
   const getToolGroup = (name) => {
     const b = parseBase(name).toLowerCase();
     if (b.includes('n8nlabz') || b === 'panel') return 'panel';
-    if (b.includes('n8n')) return 'n8n';
-    if (b.includes('evolution')) return 'evolution';
-    if (b.includes('portainer')) return 'portainer';
-    if (b.includes('postgres')) return 'postgres';
-    if (b.includes('traefik')) return 'traefik';
+    // Check if it belongs to a main stack
+    if (b.startsWith('n8n_')) return 'n8n';
+    if (b.startsWith('evolution_')) return 'evolution';
+    if (b.startsWith('portainer_')) return 'portainer';
+    if (b.startsWith('postgres_')) return 'postgres';
+    if (b.startsWith('traefik_')) return 'traefik';
+    // If not a main stack prefix, it's a test env or other
+    const isMainStack = mainPrefixes.some((p) => b.startsWith(p));
+    if (!isMainStack) return 'env';
     return 'other';
   };
 
@@ -923,7 +977,24 @@ function MonitorPage() {
     if (group === 'postgres') return 'PostgreSQL';
     if (group === 'traefik') return 'Traefik';
     if (group === 'panel') return 'Painel';
+    if (group === 'env') return parseBase(name);
     return parseBase(name);
+  };
+
+  const parseUptime = (status) => {
+    if (!status) return null;
+    const m = status.match(/Up\s+(.+)/i);
+    if (!m) return null;
+    const raw = m[1].replace(/\s*\(.*\)/, '').trim();
+    return 'Online ha ' + raw
+      .replace(/About an hour/, '~1 hora')
+      .replace(/About a minute/, '~1 minuto')
+      .replace(/(\d+)\s*seconds?/, '$1 segundos')
+      .replace(/(\d+)\s*minutes?/, '$1 minutos')
+      .replace(/(\d+)\s*hours?/, '$1 horas')
+      .replace(/(\d+)\s*days?/, '$1 dias')
+      .replace(/(\d+)\s*weeks?/, '$1 semanas')
+      .replace(/(\d+)\s*months?/, '$1 meses');
   };
 
   const subTooltips = {
@@ -948,6 +1019,7 @@ function MonitorPage() {
     postgres: { name: 'PostgreSQL', icon: '\uD83D\uDDC4\uFE0F', color: colors.purple, desc: 'Banco de dados', managed: false },
     traefik: { name: 'Traefik', icon: '\uD83D\uDD00', color: colors.yellow, desc: 'Proxy reverso e SSL', managed: false },
     panel: { name: 'Setup Panel', icon: '\uD83D\uDEE0\uFE0F', color: colors.brand, desc: 'Painel de controle', managed: false },
+    env: { name: 'Ambientes de Teste', icon: '\uD83E\uDDEA', color: colors.textMuted, desc: 'Containers de ambientes de teste', managed: false },
     other: { name: 'Outros', icon: '\uD83D\uDCE6', color: colors.textMuted, desc: '', managed: false },
   };
 
@@ -959,10 +1031,11 @@ function MonitorPage() {
     toolGroups[g].push(c);
   });
 
-  const groupOrder = ['n8n', 'evolution', 'portainer', 'postgres', 'traefik', 'panel', 'other'];
+  const groupOrder = ['n8n', 'evolution', 'portainer', 'postgres', 'traefik', 'panel', 'env', 'other'];
   const visibleGroups = Object.entries(toolGroups)
     .filter(([g, items]) => {
       if (!showAdvanced && g === 'panel') return false;
+      if (!showAdvanced && g === 'env') return false;
       if (!showAdvanced && items.every((c) => c.state !== 'running')) return false;
       return true;
     })
@@ -1004,13 +1077,31 @@ function MonitorPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {visibleGroups.map(([group, items]) => {
           const def = toolDefs[group] || toolDefs.other;
-          const allRunning = items.length > 0 && items.every((c) => c.state === 'running');
+          const someRunning = items.some((c) => c.state === 'running');
           const mainContainer = items.find((c) => {
             const fn = getFriendly(c.name, group);
             return fn !== 'Redis' && fn !== 'Agent';
           }) || items[0];
           const version = mainContainer ? (mainContainer.image.split(':').pop() || 'latest') : '---';
-          const displayItems = showAdvanced ? items : items.filter((c) => c.state === 'running');
+
+          // Deduplicate by friendly name when advanced is off (Bug 3)
+          let displayItems;
+          if (showAdvanced) {
+            displayItems = items;
+          } else {
+            const running = items.filter((c) => c.state === 'running');
+            const seen = new Set();
+            displayItems = [];
+            for (const c of running) {
+              const friendly = getFriendly(c.name, group);
+              if (!seen.has(friendly)) {
+                seen.add(friendly);
+                displayItems.push(c);
+              }
+            }
+          }
+
+          const borderColor = someRunning ? colors.green : colors.red;
 
           return (
             <Card key={group} style={{ overflow: 'hidden', borderColor: def.color + '20' }}>
@@ -1023,8 +1114,8 @@ function MonitorPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 16, fontWeight: 700, fontFamily: mono }}>{def.name}</span>
-                      <Tooltip text={allRunning ? 'Todos os servicos estao funcionando normalmente' : 'Um ou mais servicos estao parados'}>
-                        <StatusBadge status={allRunning ? 'running' : 'stopped'} />
+                      <Tooltip text={someRunning ? 'Servico esta funcionando' : 'Todos os servicos estao parados'}>
+                        <StatusBadge status={someRunning ? 'running' : 'stopped'} />
                       </Tooltip>
                     </div>
                     <div style={{ fontSize: 12, color: colors.textDim, marginTop: 2 }}>{def.desc}</div>
@@ -1052,12 +1143,15 @@ function MonitorPage() {
                     const isRunning = c.state === 'running';
                     const ramVal = c.ram ? c.ram.split('/')[0].trim() : '---';
                     const cpuVal = c.cpu || '---';
+                    const uptime = parseUptime(c.status);
+                    const leftColor = isRunning ? colors.green : colors.red;
                     return (
                       <Tooltip key={c.id} text={subTooltips[group + '_' + friendly] || ('Container do servico ' + friendly)}>
                         <div style={{
                           padding: '12px 16px', borderRadius: 10, minWidth: 120,
                           border: `1px solid ${isRunning ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
                           background: isRunning ? 'rgba(34,197,94,0.03)' : 'rgba(239,68,68,0.03)',
+                          borderLeft: `3px solid ${leftColor}`,
                         }}>
                           <div style={{ fontWeight: 600, fontSize: 13, fontFamily: mono, color: '#fff', marginBottom: 8 }}>{friendly}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -1071,6 +1165,9 @@ function MonitorPage() {
                           <Tooltip text="Memoria consumida. Valores entre 100-500MB sao normais para a maioria dos servicos">
                             <div style={{ fontSize: 11, fontFamily: mono, color: colors.textDim }}>{ramVal}</div>
                           </Tooltip>
+                          {uptime && (
+                            <div style={{ fontSize: 10, fontFamily: mono, color: colors.textDim, marginTop: 6, opacity: 0.7 }}>{uptime}</div>
+                          )}
                         </div>
                       </Tooltip>
                     );
@@ -1695,7 +1792,7 @@ export default function App() {
       <aside style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ marginBottom: 36, padding: '0 8px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.2</div>
+          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.3</div>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
