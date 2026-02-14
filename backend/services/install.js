@@ -298,7 +298,7 @@ class InstallService {
       "    ## 🗄️ Banco de Dados (PostgreSQL)\n" +
       "      - DB_TYPE=postgresdb\n" +
       "      - DB_POSTGRESDB_DATABASE=n8n_db ## Nome do banco\n" +
-      "      - DB_POSTGRESDB_HOST=postgres_postgres ## Host do PostgreSQL (DNS do Swarm)\n" +
+      "      - DB_POSTGRESDB_HOST=" + (c.pg_host || "postgres_postgres") + " ## Host do PostgreSQL (DNS do Swarm)\n" +
       "      - DB_POSTGRESDB_PORT=5432\n" +
       "      - DB_POSTGRESDB_USER=postgres ## Usuário do banco\n" +
       "      - DB_POSTGRESDB_PASSWORD=" + c.pg_password + " ## Senha do PostgreSQL\n" +
@@ -369,7 +369,7 @@ class InstallService {
       "    ## 🗄️ Banco de Dados (PostgreSQL)\n" +
       "      - DB_TYPE=postgresdb\n" +
       "      - DB_POSTGRESDB_DATABASE=n8n_db ## Nome do banco\n" +
-      "      - DB_POSTGRESDB_HOST=postgres_postgres ## Host do PostgreSQL (DNS do Swarm)\n" +
+      "      - DB_POSTGRESDB_HOST=" + (c.pg_host || "postgres_postgres") + " ## Host do PostgreSQL (DNS do Swarm)\n" +
       "      - DB_POSTGRESDB_PORT=5432\n" +
       "      - DB_POSTGRESDB_USER=postgres ## Usuário do banco\n" +
       "      - DB_POSTGRESDB_PASSWORD=" + c.pg_password + " ## Senha do PostgreSQL\n" +
@@ -381,7 +381,7 @@ class InstallService {
       "      - EXECUTIONS_MODE=queue ## Modo fila (recomendado para produção)\n" +
       "\n" +
       "    ## 🔁 Redis (Fila de Execução)\n" +
-      "      - QUEUE_BULL_REDIS_HOST=n8n_n8n_redis ## Host do Redis (DNS do Swarm)\n" +
+      "      - QUEUE_BULL_REDIS_HOST=" + (c.redis_host || "n8n_n8n_redis") + " ## Host do Redis (DNS do Swarm)\n" +
       "      - QUEUE_BULL_REDIS_PORT=6379\n" +
       "      - QUEUE_BULL_REDIS_DB=1\n" +
       "\n" +
@@ -598,7 +598,7 @@ class InstallService {
       "    ## 🗄️ Banco de Dados (PostgreSQL)\n" +
       "      - DATABASE_ENABLED=true\n" +
       "      - DATABASE_PROVIDER=postgresql\n" +
-      "      - DATABASE_CONNECTION_URI=postgresql://postgres:" + c.pg_password + "@postgres_postgres:5432/evolution_db ## Conexão com PostgreSQL compartilhado\n" +
+      "      - DATABASE_CONNECTION_URI=postgresql://postgres:" + c.pg_password + "@" + (c.pg_host || "postgres_postgres") + ":5432/evolution_db ## Conexão com PostgreSQL compartilhado\n" +
       "      - DATABASE_CONNECTION_CLIENT_NAME=evolution\n" +
       "      - DATABASE_SAVE_DATA_INSTANCE=true\n" +
       "      - DATABASE_SAVE_DATA_NEW_MESSAGE=true\n" +
@@ -619,7 +619,7 @@ class InstallService {
       "\n" +
       "    ## 🔁 Cache Redis\n" +
       "      - CACHE_REDIS_ENABLED=true\n" +
-      "      - CACHE_REDIS_URI=redis://evolution_evolution_redis:6379/1 ## Redis dedicado para cache\n" +
+      "      - CACHE_REDIS_URI=redis://" + (c.evo_redis_host || "evolution_evolution_redis") + ":6379/1 ## Redis dedicado para cache\n" +
       "      - CACHE_REDIS_PREFIX_KEY=evolution\n" +
       "      - CACHE_REDIS_SAVE_INSTANCES=false\n" +
       "      - CACHE_LOCAL_ENABLED=false\n" +

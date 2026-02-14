@@ -60,10 +60,15 @@ class EnvironmentService {
         const encKey = InstallService.genPass(32);
         if (onLog) onLog("Criando n8n no ambiente " + name + "...", "info");
 
+        // Swarm DNS: {stackName}_{serviceName}
+        // PostgreSQL stack: {name}_postgres → service: postgres → host: {name}_postgres_postgres
+        // Redis inside n8n stack: {name}_n8n → service: n8n_redis → host: {name}_n8n_n8n_redis
         const composeConfig = {
           domain_n8n: domain,
           pg_password: pgPass,
           encryption_key: encKey,
+          pg_host: name + "_postgres_postgres",
+          redis_host: name + "_n8n_n8n_redis",
         };
         const compose = InstallService.getN8nSimpleCompose(composeConfig);
         await InstallService.deployStack(stackName, compose);
@@ -76,10 +81,14 @@ class EnvironmentService {
         const apiKey = InstallService.genPass(32);
         if (onLog) onLog("Criando Evolution no ambiente " + name + "...", "info");
 
+        // PostgreSQL: {name}_postgres_postgres
+        // Redis inside evolution stack: {name}_evolution → service: evolution_redis → host: {name}_evolution_evolution_redis
         const composeConfig = {
           domain_evolution: domain,
           pg_password: pgPass,
           evolution_key: apiKey,
+          pg_host: name + "_postgres_postgres",
+          evo_redis_host: name + "_evolution_evolution_redis",
         };
         const compose = InstallService.getEvolutionCompose(composeConfig);
         await InstallService.deployStack(stackName, compose);
