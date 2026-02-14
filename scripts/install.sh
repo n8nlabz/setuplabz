@@ -199,7 +199,7 @@ services:
         - "traefik.enable=true"
         - "traefik.http.middlewares.redirect-https.redirectscheme.scheme=https"
         - "traefik.http.middlewares.redirect-https.redirectscheme.permanent=true"
-        - "traefik.http.routers.http-catchall.rule=Host(\`{host:.+}\`)"
+        - "traefik.http.routers.http-catchall.rule=Host(BKTK{host:.+}BKTK)"
         - "traefik.http.routers.http-catchall.entrypoints=web"
         - "traefik.http.routers.http-catchall.middlewares=redirect-https@docker"
         - "traefik.http.routers.http-catchall.priority=1"
@@ -214,6 +214,7 @@ networks:
     external: true
     name: ${NETWORK_NAME}
 EOF
+sed -i 's/BKTK/`/g' "$TRAEFIK_COMPOSE"
 docker stack deploy -c "$TRAEFIK_COMPOSE" traefik >/dev/null 2>&1
 rm -f "$TRAEFIK_COMPOSE"
 
@@ -279,7 +280,7 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.n8nlabz.rule=Host(\`${DASHBOARD_DOMAIN}\`)"
+        - "traefik.http.routers.n8nlabz.rule=Host(BKTK${DASHBOARD_DOMAIN}BKTK)"
         - "traefik.http.routers.n8nlabz.entrypoints=websecure"
         - "traefik.http.routers.n8nlabz.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.n8nlabz.loadbalancer.server.port=3080"
@@ -290,6 +291,7 @@ networks:
     external: true
     name: ${NETWORK_NAME}
 EOF
+sed -i 's/BKTK/`/g' "$PANEL_COMPOSE"
 docker stack deploy -c "$PANEL_COMPOSE" panel >/dev/null 2>&1
 rm -f "$PANEL_COMPOSE"
 
