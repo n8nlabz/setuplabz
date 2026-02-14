@@ -8,6 +8,11 @@ MAGENTA='\033[0;35m'
 INSTALL_DIR="/opt/n8nlabz"
 REPO_URL="https://github.com/n8nlabz/setuplabz.git"
 
+# ── Sanitize helper: strip \r\n and spaces ──
+sanitize() {
+  echo "$1" | tr -d '\r\n' | xargs
+}
+
 # ── Root check ──
 [ "$EUID" -ne 0 ] && { echo -e "  ${RED}x${NC} Execute como root: sudo bash install.sh"; exit 1; }
 
@@ -38,27 +43,18 @@ detect_existing() {
 
   local found=""
 
-  # Check Traefik
   if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "traefik"; then
     found="${found}traefik,"
   fi
-
-  # Check Portainer
   if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "portainer"; then
     found="${found}portainer,"
   fi
-
-  # Check PostgreSQL
   if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "postgres"; then
     found="${found}postgres,"
   fi
-
-  # Check n8n
   if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "n8n"; then
     found="${found}n8n,"
   fi
-
-  # Check Evolution API
   if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "evolution"; then
     found="${found}evolution,"
   fi
@@ -74,6 +70,71 @@ get_service_env() {
 
 find_service_by_keyword() {
   docker service ls --format '{{.Name}}' 2>/dev/null | grep -i "$1" | head -1
+}
+
+# ── Auto-detect existing configuration ──
+detect_config() {
+  DETECTED_NETWORK=""
+  DETECTED_DOMAIN=""
+  DETECTED_SERVER=""
+  DETECTED_EMAIL=""
+
+  # 1. Network — first overlay network that's not ingress
+  DETECTED_NETWORK=$(docker network ls --filter driver=overlay --format '{{.Name}}' 2>/dev/null | grep -v ingress | head -1)
+
+  # 2. Domain base — from existing config.json
+  if [ -f "$INSTALL_DIR/config.json" ]; then
+    local cfg_domain
+    cfg_domain=$(jq -r '.domain_base // empty' "$INSTALL_DIR/config.json" 2>/dev/null)
+    [ -n "$cfg_domain" ] && DETECTED_DOMAIN="$cfg_domain"
+
+    local cfg_email
+    cfg_email=$(jq -r '.admin_email // empty' "$INSTALL_DIR/config.json" 2>/dev/null)
+    [ -n "$cfg_email" ] && DETECTED_EMAIL="$cfg_email"
+
+    local cfg_server
+    cfg_server=$(jq -r '.server_name // empty' "$INSTALL_DIR/config.json" 2>/dev/null)
+    [ -n "$cfg_server" ] && DETECTED_SERVER="$cfg_server"
+
+    local cfg_network
+    cfg_network=$(jq -r '.network_name // empty' "$INSTALL_DIR/config.json" 2>/dev/null)
+    [ -n "$cfg_network" ] && DETECTED_NETWORK="$cfg_network"
+  fi
+
+  # 3. Domain base — from n8n N8N_HOST env var (fallback)
+  if [ -z "$DETECTED_DOMAIN" ]; then
+    local n8n_svc
+    n8n_svc=$(find_service_by_keyword "n8n" | grep -v redis | head -1)
+    if [ -n "$n8n_svc" ]; then
+      local n8n_host
+      n8n_host=$(get_service_env "$n8n_svc" "N8N_HOST")
+      if [ -n "$n8n_host" ]; then
+        # n8n.example.com → example.com (remove first subdomain)
+        DETECTED_DOMAIN=$(echo "$n8n_host" | sed 's/^[^.]*\.//')
+      fi
+    fi
+  fi
+
+  # 4. Domain base — from evolution SERVER_URL (fallback)
+  if [ -z "$DETECTED_DOMAIN" ]; then
+    local evo_svc
+    evo_svc=$(find_service_by_keyword "evolution" | grep -v redis | head -1)
+    if [ -n "$evo_svc" ]; then
+      local evo_url
+      evo_url=$(get_service_env "$evo_svc" "SERVER_URL")
+      if [ -n "$evo_url" ]; then
+        # https://evolution.example.com → example.com
+        local evo_host
+        evo_host=$(echo "$evo_url" | sed 's|https\?://||' | sed 's|/.*||')
+        DETECTED_DOMAIN=$(echo "$evo_host" | sed 's/^[^.]*\.//')
+      fi
+    fi
+  fi
+
+  # 5. Server name — from hostname (fallback)
+  if [ -z "$DETECTED_SERVER" ]; then
+    DETECTED_SERVER=$(hostname 2>/dev/null | cut -d'.' -f1)
+  fi
 }
 
 detect_credentials() {
@@ -117,7 +178,6 @@ detect_credentials() {
   if [ -n "$evo_svc" ]; then
     local evo_key=$(get_service_env "$evo_svc" "AUTHENTICATION_API_KEY")
     local evo_host=$(get_service_env "$evo_svc" "SERVER_URL")
-    local evo_db=$(get_service_env "$evo_svc" "DATABASE_CONNECTION_URI")
 
     local evo_creds="{}"
     [ -n "$evo_key" ] && evo_creds=$(echo "$evo_creds" | jq --arg v "$evo_key" '. + {api_key: $v}')
@@ -131,10 +191,8 @@ detect_credentials() {
   # Detect Portainer credentials
   local port_svc=$(find_service_by_keyword "portainer" | grep -v agent | head -1)
   if [ -n "$port_svc" ]; then
-    # Portainer doesn't store creds in env vars, but we can detect the domain
     local port_labels
     port_labels=$(docker service inspect "$port_svc" --format '{{range $k, $v := .Spec.TaskTemplate.ContainerSpec.Labels}}{{$k}}={{$v}}{{println ""}}{{end}}' 2>/dev/null || true)
-    # Also check deploy labels
     port_labels="${port_labels}$(docker service inspect "$port_svc" --format '{{range $k, $v := .Spec.Labels}}{{$k}}={{$v}}{{println ""}}{{end}}' 2>/dev/null || true)"
     local port_domain=$(echo "$port_labels" | grep "traefik.http.routers" | grep "rule=" | head -1 | sed "s/.*Host(\`\?\([^\`\)]*\)\`\?).*/\1/" | sed 's/^`//' | sed 's/`$//')
     if [ -n "$port_domain" ] && [ "$port_domain" != "$port_labels" ]; then
@@ -144,6 +202,10 @@ detect_credentials() {
 
   echo "$creds_json"
 }
+
+# ══════════════════════════════════════
+# DETECCAO E ESCOLHA DE MODO
+# ══════════════════════════════════════
 
 detect_existing
 
@@ -175,8 +237,8 @@ if [ -n "$DETECTED_TOOLS" ]; then
   CHOICE=""
   while [ "$CHOICE" != "1" ] && [ "$CHOICE" != "2" ]; do
     printf "  Escolha (1 ou 2): " >&2
-    read CHOICE < /dev/tty
-    CHOICE=$(echo "$CHOICE" | xargs)
+    read -r CHOICE < /dev/tty
+    CHOICE=$(sanitize "$CHOICE")
     if [ "$CHOICE" != "1" ] && [ "$CHOICE" != "2" ]; then
       echo -e "  ${YELLOW}Opcao invalida. Digite 1 ou 2.${NC}"
     fi
@@ -196,7 +258,8 @@ if [ -n "$DETECTED_TOOLS" ]; then
     echo ""
     CONFIRM=""
     printf "  Digite CONFIRMAR para prosseguir: " >&2
-    read CONFIRM < /dev/tty
+    read -r CONFIRM < /dev/tty
+    CONFIRM=$(sanitize "$CONFIRM")
     if [ "$CONFIRM" != "CONFIRMAR" ]; then
       echo -e "\n  ${RED}Instalacao cancelada.${NC}"
       exit 0
@@ -204,14 +267,12 @@ if [ -n "$DETECTED_TOOLS" ]; then
     echo ""
     echo -e "  ${YELLOW}Removendo stacks existentes...${NC}"
 
-    # Remove all stacks
     for stack in $(docker stack ls --format '{{.Name}}' 2>/dev/null); do
       echo -e "    Removendo stack: ${stack}"
       docker stack rm "$stack" >/dev/null 2>&1 || true
     done
     sleep 10
 
-    # Remove all non-system volumes
     for vol in $(docker volume ls --format '{{.Name}}' 2>/dev/null | grep -v '^$'); do
       docker volume rm "$vol" >/dev/null 2>&1 || true
     done
@@ -230,88 +291,228 @@ fi
 # ══════════════════════════════════════
 # COLETA DE DADOS
 # ══════════════════════════════════════
-echo -e "\n  ${MAGENTA}>>${NC} ${BOLD}Configuracao inicial${NC}\n"
 
-BASE_DOMAIN=""
-while [ -z "$BASE_DOMAIN" ]; do
-  printf "  Qual o seu dominio base? (ex: seudominio.com.br): " >&2
-  read BASE_DOMAIN < /dev/tty
-  BASE_DOMAIN=$(echo "$BASE_DOMAIN" | sed 's|https\?://||' | sed 's|/||g' | xargs)
-  [ -z "$BASE_DOMAIN" ] && echo -e "  ${YELLOW}!${NC}  Dominio base e obrigatorio."
-done
+SERVER_IP=$(curl -4 -s --max-time 10 ifconfig.me 2>/dev/null || curl -s --max-time 10 ifconfig.me 2>/dev/null || echo "")
 
-echo ""
-echo -e "  Agora precisamos do seu email e senha para voce ter acesso"
-echo -e "  ao painel onde vai conseguir fazer toda a gestao da sua VPS"
-echo -e "  de uma forma simples!"
-echo ""
-
-ADMIN_EMAIL=""
-while [ -z "$ADMIN_EMAIL" ]; do
-  printf "  Seu email: " >&2
-  read ADMIN_EMAIL < /dev/tty
-  ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)
-  [ -z "$ADMIN_EMAIL" ] && echo -e "  ${YELLOW}!${NC}  Email e obrigatorio."
-done
-
-ADMIN_PASS=""
-while true; do
-  printf "  Sua senha: " >&2
-  read -s ADMIN_PASS < /dev/tty
+if [ "$MIGRATION_MODE" = "import" ]; then
+  # ─────────────────────────────────────
+  # MODO IMPORTACAO: auto-detect + minimal questions
+  # ─────────────────────────────────────
+  echo -e "  ${CYAN}Detectando configuracoes existentes...${NC}"
   echo ""
-  if [ -z "$ADMIN_PASS" ]; then
-    echo -e "  ${YELLOW}!${NC}  Senha e obrigatoria."
-    continue
+
+  detect_config
+
+  # Show what was detected
+  if [ -n "$DETECTED_NETWORK" ]; then
+    echo -e "     Rede: ${BOLD}${DETECTED_NETWORK}${NC} ${GREEN}OK${NC}"
+  else
+    echo -e "     Rede: ${YELLOW}nao detectada${NC}"
   fi
-  printf "  Confirme a senha: " >&2
-  read -s ADMIN_PASS2 < /dev/tty
+  if [ -n "$DETECTED_DOMAIN" ]; then
+    echo -e "     Dominio base: ${BOLD}${DETECTED_DOMAIN}${NC} ${GREEN}OK${NC}"
+  else
+    echo -e "     Dominio base: ${YELLOW}nao detectado${NC}"
+  fi
+  if [ -n "$DETECTED_SERVER" ]; then
+    echo -e "     Servidor: ${BOLD}${DETECTED_SERVER}${NC} ${GREEN}OK${NC}"
+  else
+    echo -e "     Servidor: ${YELLOW}nao detectado${NC}"
+  fi
+  if [ -n "$DETECTED_EMAIL" ]; then
+    echo -e "     Email: ${BOLD}${DETECTED_EMAIL}${NC} ${GREEN}OK${NC}"
+  else
+    echo -e "     Email: ${YELLOW}nao detectado${NC}"
+  fi
   echo ""
-  if [ "$ADMIN_PASS" != "$ADMIN_PASS2" ]; then
-    echo -e "  ${YELLOW}!${NC}  As senhas nao coincidem. Tente novamente."
-    ADMIN_PASS=""
-    continue
+
+  # Use detected values, ask only for missing ones
+  NETWORK_NAME="$DETECTED_NETWORK"
+  BASE_DOMAIN="$DETECTED_DOMAIN"
+  SERVER_NAME="$DETECTED_SERVER"
+  ADMIN_EMAIL="$DETECTED_EMAIL"
+
+  # Ask for missing fields
+  if [ -z "$BASE_DOMAIN" ]; then
+    echo -e "  Nao conseguimos detectar o dominio base."
+    while [ -z "$BASE_DOMAIN" ]; do
+      printf "  Qual o seu dominio base? (ex: seudominio.com.br): " >&2
+      read -r BASE_DOMAIN < /dev/tty
+      BASE_DOMAIN=$(sanitize "$BASE_DOMAIN")
+      BASE_DOMAIN=$(echo "$BASE_DOMAIN" | sed 's|https\?://||' | sed 's|/||g')
+      [ -z "$BASE_DOMAIN" ] && echo -e "  ${YELLOW}!${NC}  Dominio base e obrigatorio."
+    done
+    echo ""
   fi
-  break
-done
 
-ADMIN_PASS_HASH=$(echo -n "$ADMIN_PASS" | sha256sum | cut -d' ' -f1)
+  if [ -z "$ADMIN_EMAIL" ]; then
+    echo -e "  Nao conseguimos detectar o email."
+    while [ -z "$ADMIN_EMAIL" ]; do
+      printf "  Seu email: " >&2
+      read -r ADMIN_EMAIL < /dev/tty
+      ADMIN_EMAIL=$(sanitize "$ADMIN_EMAIL")
+      [ -z "$ADMIN_EMAIL" ] && echo -e "  ${YELLOW}!${NC}  Email e obrigatorio."
+    done
+    echo ""
+  fi
 
-echo ""
-SERVER_NAME=""
-while [ -z "$SERVER_NAME" ]; do
-  printf "  Nome do servidor (ex: n8nlabz, meuserver, minhaempresa): " >&2
-  read SERVER_NAME < /dev/tty
-  SERVER_NAME=$(echo "$SERVER_NAME" | xargs)
-  [ -z "$SERVER_NAME" ] && echo -e "  ${YELLOW}!${NC}  Nome do servidor e obrigatorio."
-done
+  if [ -z "$SERVER_NAME" ]; then
+    echo -e "  Nao conseguimos detectar o nome do servidor."
+    while [ -z "$SERVER_NAME" ]; do
+      printf "  Nome do servidor (ex: n8nlabz): " >&2
+      read -r SERVER_NAME < /dev/tty
+      SERVER_NAME=$(sanitize "$SERVER_NAME")
+      [ -z "$SERVER_NAME" ] && echo -e "  ${YELLOW}!${NC}  Nome do servidor e obrigatorio."
+    done
+    echo ""
+  fi
 
-NETWORK_NAME=""
-while [ -z "$NETWORK_NAME" ]; do
-  printf "  Nome da rede (ex: n8nlabznet, minharede): " >&2
-  read NETWORK_NAME < /dev/tty
-  NETWORK_NAME=$(echo "$NETWORK_NAME" | xargs)
-  [ -z "$NETWORK_NAME" ] && echo -e "  ${YELLOW}!${NC}  Nome da rede e obrigatorio."
-done
+  if [ -z "$NETWORK_NAME" ]; then
+    echo -e "  Nao conseguimos detectar a rede."
+    while [ -z "$NETWORK_NAME" ]; do
+      printf "  Nome da rede (ex: n8nlabznet): " >&2
+      read -r NETWORK_NAME < /dev/tty
+      NETWORK_NAME=$(sanitize "$NETWORK_NAME")
+      [ -z "$NETWORK_NAME" ] && echo -e "  ${YELLOW}!${NC}  Nome da rede e obrigatorio."
+    done
+    echo ""
+  fi
 
-SERVER_IP=$(curl -4 -s ifconfig.me || curl -s ifconfig.me)
+  # Always ask: password
+  echo -e "\n  ${MAGENTA}>>${NC} ${BOLD}Precisamos apenas de algumas informacoes para o painel:${NC}\n"
 
-echo ""
-echo -e "  ${YELLOW}IMPORTANTE:${NC} Antes de continuar, voce precisa apontar o DNS"
-echo -e "  do subdominio do seu painel para o IP desta VPS: ${BOLD}${SERVER_IP}${NC}"
-echo ""
-echo -e "  O subdominio pode ser qualquer um, por exemplo:"
-echo -e "  ${CYAN}  dashboard.seudominio.com.br${NC}"
-echo -e "  ${CYAN}  painel.seudominio.com.br${NC}"
-echo -e "  ${CYAN}  console.seudominio.com.br${NC}"
-echo ""
+  ADMIN_PASS=""
+  while true; do
+    printf "  Sua senha para o painel: " >&2
+    read -rs ADMIN_PASS < /dev/tty
+    echo ""
+    ADMIN_PASS=$(echo "$ADMIN_PASS" | tr -d '\r')
+    if [ -z "$ADMIN_PASS" ]; then
+      echo -e "  ${YELLOW}!${NC}  Senha e obrigatoria."
+      continue
+    fi
+    printf "  Confirme a senha: " >&2
+    read -rs ADMIN_PASS2 < /dev/tty
+    echo ""
+    ADMIN_PASS2=$(echo "$ADMIN_PASS2" | tr -d '\r')
+    if [ "$ADMIN_PASS" != "$ADMIN_PASS2" ]; then
+      echo -e "  ${YELLOW}!${NC}  As senhas nao coincidem. Tente novamente."
+      ADMIN_PASS=""
+      continue
+    fi
+    break
+  done
 
-DASHBOARD_DOMAIN=""
-while [ -z "$DASHBOARD_DOMAIN" ]; do
-  printf "  Digite o link completo do seu painel (ex: painel.seudominio.com.br): " >&2
-  read DASHBOARD_DOMAIN < /dev/tty
-  DASHBOARD_DOMAIN=$(echo "$DASHBOARD_DOMAIN" | sed 's|https\?://||' | sed 's|/||g' | xargs)
-  [ -z "$DASHBOARD_DOMAIN" ] && echo -e "  ${YELLOW}!${NC}  Dominio do painel e obrigatorio."
-done
+  ADMIN_PASS_HASH=$(echo -n "$ADMIN_PASS" | sha256sum | cut -d' ' -f1)
+
+  # Always ask: dashboard domain
+  echo ""
+  echo -e "  ${YELLOW}IMPORTANTE:${NC} Antes de continuar, voce precisa apontar o DNS"
+  echo -e "  do subdominio do seu painel para o IP desta VPS: ${BOLD}${SERVER_IP}${NC}"
+  echo ""
+  echo -e "  O subdominio pode ser qualquer um, por exemplo:"
+  echo -e "  ${CYAN}  painel.${BASE_DOMAIN}${NC}"
+  echo -e "  ${CYAN}  dashboard.${BASE_DOMAIN}${NC}"
+  echo ""
+
+  DASHBOARD_DOMAIN=""
+  while [ -z "$DASHBOARD_DOMAIN" ]; do
+    printf "  Digite o link do seu painel (ex: painel.${BASE_DOMAIN}): " >&2
+    read -r DASHBOARD_DOMAIN < /dev/tty
+    DASHBOARD_DOMAIN=$(sanitize "$DASHBOARD_DOMAIN")
+    DASHBOARD_DOMAIN=$(echo "$DASHBOARD_DOMAIN" | sed 's|https\?://||' | sed 's|/||g')
+    [ -z "$DASHBOARD_DOMAIN" ] && echo -e "  ${YELLOW}!${NC}  Dominio do painel e obrigatorio."
+  done
+
+else
+  # ─────────────────────────────────────
+  # INSTALACAO NOVA / LIMPA: perguntar tudo
+  # ─────────────────────────────────────
+  echo -e "\n  ${MAGENTA}>>${NC} ${BOLD}Configuracao inicial${NC}\n"
+
+  BASE_DOMAIN=""
+  while [ -z "$BASE_DOMAIN" ]; do
+    printf "  Qual o seu dominio base? (ex: seudominio.com.br): " >&2
+    read -r BASE_DOMAIN < /dev/tty
+    BASE_DOMAIN=$(sanitize "$BASE_DOMAIN")
+    BASE_DOMAIN=$(echo "$BASE_DOMAIN" | sed 's|https\?://||' | sed 's|/||g')
+    [ -z "$BASE_DOMAIN" ] && echo -e "  ${YELLOW}!${NC}  Dominio base e obrigatorio."
+  done
+
+  echo ""
+  echo -e "  Agora precisamos do seu email e senha para voce ter acesso"
+  echo -e "  ao painel onde vai conseguir fazer toda a gestao da sua VPS"
+  echo -e "  de uma forma simples!"
+  echo ""
+
+  ADMIN_EMAIL=""
+  while [ -z "$ADMIN_EMAIL" ]; do
+    printf "  Seu email: " >&2
+    read -r ADMIN_EMAIL < /dev/tty
+    ADMIN_EMAIL=$(sanitize "$ADMIN_EMAIL")
+    [ -z "$ADMIN_EMAIL" ] && echo -e "  ${YELLOW}!${NC}  Email e obrigatorio."
+  done
+
+  ADMIN_PASS=""
+  while true; do
+    printf "  Sua senha: " >&2
+    read -rs ADMIN_PASS < /dev/tty
+    echo ""
+    ADMIN_PASS=$(echo "$ADMIN_PASS" | tr -d '\r')
+    if [ -z "$ADMIN_PASS" ]; then
+      echo -e "  ${YELLOW}!${NC}  Senha e obrigatoria."
+      continue
+    fi
+    printf "  Confirme a senha: " >&2
+    read -rs ADMIN_PASS2 < /dev/tty
+    echo ""
+    ADMIN_PASS2=$(echo "$ADMIN_PASS2" | tr -d '\r')
+    if [ "$ADMIN_PASS" != "$ADMIN_PASS2" ]; then
+      echo -e "  ${YELLOW}!${NC}  As senhas nao coincidem. Tente novamente."
+      ADMIN_PASS=""
+      continue
+    fi
+    break
+  done
+
+  ADMIN_PASS_HASH=$(echo -n "$ADMIN_PASS" | sha256sum | cut -d' ' -f1)
+
+  echo ""
+  SERVER_NAME=""
+  while [ -z "$SERVER_NAME" ]; do
+    printf "  Nome do servidor (ex: n8nlabz, meuserver, minhaempresa): " >&2
+    read -r SERVER_NAME < /dev/tty
+    SERVER_NAME=$(sanitize "$SERVER_NAME")
+    [ -z "$SERVER_NAME" ] && echo -e "  ${YELLOW}!${NC}  Nome do servidor e obrigatorio."
+  done
+
+  NETWORK_NAME=""
+  while [ -z "$NETWORK_NAME" ]; do
+    printf "  Nome da rede (ex: n8nlabznet, minharede): " >&2
+    read -r NETWORK_NAME < /dev/tty
+    NETWORK_NAME=$(sanitize "$NETWORK_NAME")
+    [ -z "$NETWORK_NAME" ] && echo -e "  ${YELLOW}!${NC}  Nome da rede e obrigatorio."
+  done
+
+  echo ""
+  echo -e "  ${YELLOW}IMPORTANTE:${NC} Antes de continuar, voce precisa apontar o DNS"
+  echo -e "  do subdominio do seu painel para o IP desta VPS: ${BOLD}${SERVER_IP}${NC}"
+  echo ""
+  echo -e "  O subdominio pode ser qualquer um, por exemplo:"
+  echo -e "  ${CYAN}  dashboard.seudominio.com.br${NC}"
+  echo -e "  ${CYAN}  painel.seudominio.com.br${NC}"
+  echo -e "  ${CYAN}  console.seudominio.com.br${NC}"
+  echo ""
+
+  DASHBOARD_DOMAIN=""
+  while [ -z "$DASHBOARD_DOMAIN" ]; do
+    printf "  Digite o link completo do seu painel (ex: painel.seudominio.com.br): " >&2
+    read -r DASHBOARD_DOMAIN < /dev/tty
+    DASHBOARD_DOMAIN=$(sanitize "$DASHBOARD_DOMAIN")
+    DASHBOARD_DOMAIN=$(echo "$DASHBOARD_DOMAIN" | sed 's|https\?://||' | sed 's|/||g')
+    [ -z "$DASHBOARD_DOMAIN" ] && echo -e "  ${YELLOW}!${NC}  Dominio do painel e obrigatorio."
+  done
+fi
 
 echo ""
 echo -e "  Preparando sua VPS... isso pode levar alguns minutos."
@@ -519,7 +720,6 @@ sleep 10
 # DETECTED TOOLS — mark as installed
 # ══════════════════════════════════════
 if [ "$MIGRATION_MODE" = "import" ] && [ -n "$DETECTED_TOOLS" ]; then
-  # Create installed.json so the panel knows what's already installed
   INSTALLED_JSON="[]"
   IFS=',' read -ra TOOL_LIST <<< "$DETECTED_TOOLS"
   for tool in "${TOOL_LIST[@]}"; do
