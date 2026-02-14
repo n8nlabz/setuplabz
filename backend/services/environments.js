@@ -33,6 +33,7 @@ class EnvironmentService {
       name,
       created_at: new Date().toISOString(),
       stacks: [],
+      credentials: {},
       status: "creating",
     };
 
@@ -47,6 +48,7 @@ class EnvironmentService {
     await InstallService.waitForService(pgStackName + "_", 120000);
     await new Promise((r) => setTimeout(r, 5000));
     env.stacks.push(pgStackName);
+    env.credentials.db_password = pgPass;
 
     // Install requested tools
     for (const toolId of (tools || ["n8n"])) {
@@ -58,7 +60,6 @@ class EnvironmentService {
         const encKey = InstallService.genPass(32);
         if (onLog) onLog("Criando n8n no ambiente " + name + "...", "info");
 
-        // Create database in environment's postgres
         const composeConfig = {
           domain_n8n: domain,
           pg_password: pgPass,
@@ -67,10 +68,11 @@ class EnvironmentService {
         const compose = InstallService.getN8nSimpleCompose(composeConfig);
         await InstallService.deployStack(stackName, compose);
         env.stacks.push(stackName);
+        env.credentials.encryption_key = encKey;
       }
 
       if (toolId === "evolution") {
-        const domain = prefix + "-evolution." + base;
+        const domain = prefix + "-evo." + base;
         const apiKey = InstallService.genPass(32);
         if (onLog) onLog("Criando Evolution no ambiente " + name + "...", "info");
 
@@ -82,6 +84,7 @@ class EnvironmentService {
         const compose = InstallService.getEvolutionCompose(composeConfig);
         await InstallService.deployStack(stackName, compose);
         env.stacks.push(stackName);
+        env.credentials.api_key = apiKey;
       }
     }
 

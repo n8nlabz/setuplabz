@@ -113,6 +113,10 @@ async function destroyEnvironment(name) {
   return api(`/environments/${name}`, { method: 'DELETE' });
 }
 
+async function verifyDns(subdomains) {
+  return api('/environments/verify-dns', { method: 'POST', body: JSON.stringify({ subdomains }) });
+}
+
 // ─── Push Notifications ───
 
 async function fetchVapidKey() {
@@ -171,7 +175,7 @@ export {
   fetchCredentials, fetchMetrics, updateToolImage,
   fetchContainerEnv, updateContainerEnv, fetchContainerLogs,
   systemCleanup, fetchCleanupInfo,
-  fetchEnvironments, createEnvironment, destroyEnvironment,
+  fetchEnvironments, createEnvironment, destroyEnvironment, verifyDns,
   fetchVapidKey, subscribePush, unsubscribePush, sendTestPush,
   fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array,
   fetchSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot,

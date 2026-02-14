@@ -3,7 +3,7 @@ import { api, apiUpload, getToken, setToken, clearToken, connectWebSocket,
   fetchCredentials, fetchMetrics, updateToolImage,
   fetchContainerEnv, updateContainerEnv, fetchContainerLogs,
   systemCleanup, fetchCleanupInfo,
-  fetchEnvironments, createEnvironment, destroyEnvironment,
+  fetchEnvironments, createEnvironment, destroyEnvironment, verifyDns,
   fetchVapidKey, subscribePush, unsubscribePush, sendTestPush,
   fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array,
   fetchSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot } from './hooks/api.js';
@@ -363,7 +363,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.9
+            SETUP PANEL v3.1
           </div>
         </div>
 
@@ -1936,12 +1936,16 @@ function EnvironmentsPage() {
   const [environments, setEnvironments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [step, setStep] = useState(1);
   const [newEnvName, setNewEnvName] = useState('');
   const [newEnvTools, setNewEnvTools] = useState({ n8n: true, evolution: false });
   const [creating, setCreating] = useState(false);
   const [destroying, setDestroying] = useState(null);
   const [msg, setMsg] = useState(null);
   const [domainBase, setDomainBase] = useState('');
+  const [serverIp, setServerIp] = useState('');
+  const [dnsResults, setDnsResults] = useState(null);
+  const [verifying, setVerifying] = useState(false);
   const [showPass, setShowPass] = useState({});
 
   const refresh = useCallback(async () => {
@@ -1954,6 +1958,7 @@ function EnvironmentsPage() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
+    api('/system/info').then((s) => { if (s && s.ip) setServerIp(s.ip); }).catch(() => {});
     api('/install/suggestions').then((s) => {
       if (s && s.domain_n8n) {
         const parts = s.domain_n8n.split('.');
@@ -1962,6 +1967,38 @@ function EnvironmentsPage() {
       }
     }).catch(() => {});
   }, []);
+
+  const getSubdomains = () => {
+    const subs = [];
+    const name = newEnvName.trim();
+    if (!name || !domainBase) return subs;
+    if (newEnvTools.n8n) subs.push({ label: 'n8n', subdomain: `${name}-n8n.${domainBase}` });
+    if (newEnvTools.evolution) subs.push({ label: 'Evolution', subdomain: `${name}-evo.${domainBase}` });
+    return subs;
+  };
+
+  const openModal = () => {
+    setShowCreateModal(true);
+    setStep(1);
+    setNewEnvName('');
+    setNewEnvTools({ n8n: true, evolution: false });
+    setDnsResults(null);
+  };
+
+  const handleVerifyDns = async () => {
+    const subs = getSubdomains();
+    if (subs.length === 0) return;
+    setVerifying(true);
+    try {
+      const data = await verifyDns(subs.map((s) => s.subdomain));
+      setDnsResults(data);
+      setStep(3);
+    } catch (e) {
+      setDnsResults({ results: subs.map((s) => ({ subdomain: s.subdomain, ok: false, error: e.message })), allOk: false });
+      setStep(3);
+    }
+    setVerifying(false);
+  };
 
   const handleCreate = async () => {
     if (!newEnvName.trim()) return;
@@ -1972,8 +2009,6 @@ function EnvironmentsPage() {
       await createEnvironment(newEnvName.trim(), tools);
       setMsg({ type: 'success', text: `Ambiente "${newEnvName.trim()}" criado com sucesso!` });
       setShowCreateModal(false);
-      setNewEnvName('');
-      setNewEnvTools({ n8n: true, evolution: false });
       refresh();
     } catch (e) {
       setMsg({ type: 'error', text: 'Erro: ' + e.message });
@@ -1995,16 +2030,25 @@ function EnvironmentsPage() {
     setDestroying(null);
   };
 
+  const copyAll = () => {
+    const subs = getSubdomains();
+    const text = subs.map((s) => `${s.subdomain} → ${serverIp}`).join('\n');
+    navigator.clipboard.writeText(text);
+  };
+
+  const togglePass = (key) => setShowPass((p) => ({ ...p, [key]: !p[key] }));
+
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
+
+  const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontSize: 13, fontFamily: mono, outline: 'none', boxSizing: 'border-box' };
 
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Ambientes de Teste</h1>
       <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>Crie ambientes isolados para testar automacoes antes de colocar em producao.</p>
 
-      {/* Warning */}
       <Card style={{ padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(234,179,8,0.04)', borderColor: 'rgba(234,179,8,0.15)' }}>
-        <span style={{ fontSize: 16 }}>⚠️</span>
+        <span style={{ fontSize: 16 }}>&#9888;&#65039;</span>
         <span style={{ fontSize: 12, color: colors.yellow, fontFamily: mono }}>Cada ambiente consome recursos adicionais (RAM, CPU, disco). Use com moderacao.</span>
       </Card>
 
@@ -2015,38 +2059,42 @@ function EnvironmentsPage() {
       )}
 
       <div style={{ marginBottom: 24 }}>
-        <Btn onClick={() => setShowCreateModal(true)}>Criar ambiente</Btn>
+        <Btn onClick={openModal}>Criar ambiente</Btn>
       </div>
 
       {/* Environments list */}
       {environments.length === 0 ? (
         <Card style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>🧪</div>
+          <div style={{ fontSize: 40, marginBottom: 14 }}>&#129514;</div>
           <p style={{ fontSize: 13, color: colors.textMuted }}>Nenhum ambiente de teste criado ainda.</p>
         </Card>
       ) : (
-        <div className="grid-auto-xl" style={{ gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {environments.map((env) => {
             const stacks = env.stacks || [];
             const hasN8n = stacks.some((s) => s.includes('_n8n'));
             const hasEvolution = stacks.some((s) => s.includes('_evolution'));
             const urls = [];
             if (hasN8n && domainBase) urls.push({ label: 'n8n', url: `https://${env.name}-n8n.${domainBase}` });
-            if (hasEvolution && domainBase) urls.push({ label: 'Evolution', url: `https://${env.name}-evolution.${domainBase}` });
+            if (hasEvolution && domainBase) urls.push({ label: 'Evolution', url: `https://${env.name}-evo.${domainBase}` });
+            const creds = env.credentials || {};
 
             return (
               <Card key={env.name} style={{ overflow: 'hidden' }}>
                 <div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: mono, marginBottom: 4 }}>{env.name}</div>
-                      <StatusBadge status={env.status === 'running' ? 'running' : 'stopped'} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>&#129514;</span>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 700, fontFamily: mono, marginBottom: 4 }}>{env.name}</div>
+                        <StatusBadge status={env.status === 'running' ? 'running' : 'stopped'} />
+                      </div>
                     </div>
-                    <Btn variant="danger" onClick={() => handleDestroy(env.name)} loading={destroying === env.name} style={{ padding: '5px 12px', fontSize: 10 }}>
+                    <Btn variant="danger" onClick={() => handleDestroy(env.name)} loading={destroying === env.name} style={{ padding: '6px 14px', fontSize: 11 }}>
                       Destruir ambiente
                     </Btn>
                   </div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: colors.textDim, fontFamily: mono, marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: colors.textDim, fontFamily: mono, flexWrap: 'wrap' }}>
                     {env.created_at && <span>Criado em {new Date(env.created_at).toLocaleDateString('pt-BR')}</span>}
                     {env.containers_total !== undefined && <span>{env.containers_running || 0}/{env.containers_total} containers ativos</span>}
                   </div>
@@ -2055,25 +2103,51 @@ function EnvironmentsPage() {
                 {/* URLs */}
                 {urls.length > 0 && (
                   <div style={{ padding: '14px 22px', borderBottom: `1px solid ${colors.border}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 8 }}>Links de acesso:</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 10 }}>&#128279; LINKS DE ACESSO:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {urls.map((u) => (
-                        <div key={u.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div key={u.label} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, minWidth: 70 }}>{u.label}:</span>
-                          <a href={u.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontFamily: mono, color: colors.brand, textDecoration: 'none' }}>
-                            {u.url}
-                          </a>
+                          <span style={{ fontSize: 12, fontFamily: mono, color: colors.brand, wordBreak: 'break-all' }}>{u.url}</span>
                           <CopyBtn text={u.url} />
+                          <a href={u.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: colors.textMuted, textDecoration: 'none', padding: '3px 8px', borderRadius: 6, border: `1px solid ${colors.border}`, background: 'rgba(255,255,255,0.03)', fontFamily: mono }}>
+                            Abrir &#8599;
+                          </a>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Tools info */}
+                {/* Credentials */}
+                {Object.keys(creds).length > 0 && (
+                  <div style={{ padding: '14px 22px', borderBottom: `1px solid ${colors.border}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 10 }}>&#128203; CREDENCIAIS:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {Object.entries(creds).map(([key, val]) => {
+                        const isSecret = /pass|key|secret|token/i.test(key);
+                        const visKey = `${env.name}_${key}`;
+                        return (
+                          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, minWidth: 110 }}>{key}:</span>
+                            <span style={{ fontSize: 12, fontFamily: mono, color: '#fff' }}>{isSecret && !showPass[visKey] ? '••••••••' : val}</span>
+                            {isSecret && (
+                              <button onClick={() => togglePass(visKey)} style={{ background: 'none', border: `1px solid ${colors.border}`, borderRadius: 6, color: colors.textMuted, fontSize: 10, fontFamily: mono, cursor: 'pointer', padding: '3px 8px' }}>
+                                {showPass[visKey] ? 'Ocultar' : 'Mostrar'}
+                              </button>
+                            )}
+                            <CopyBtn text={val} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tools */}
                 <div style={{ padding: '12px 22px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 6 }}>Ferramentas:</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 6 }}>FERRAMENTAS:</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {hasN8n && (
                       <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.brand + '12', color: colors.brand, border: `1px solid ${colors.brand}25`, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <ToolLogo toolId="n8n" size={16} /> n8n
@@ -2095,36 +2169,158 @@ function EnvironmentsPage() {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* Create Modal — 3-step flow */}
       {showCreateModal && (
         <ModalOverlay onClose={() => setShowCreateModal(false)}>
-          <Card style={{ width: 440, padding: 28, background: '#0d0e12' }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Criar Ambiente de Teste</h3>
-            <p style={{ fontSize: 12, color: colors.textMuted, marginBottom: 20 }}>Configure o nome e as ferramentas que deseja incluir.</p>
-
-            <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nome do ambiente</label>
-            <input value={newEnvName} onChange={(e) => setNewEnvName(e.target.value)} placeholder='Ex: teste, staging'
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 9, border: `1px solid rgba(255,255,255,0.07)`, background: 'rgba(0,0,0,0.3)', color: '#fff', fontSize: 13, fontFamily: mono, outline: 'none', marginBottom: 18, boxSizing: 'border-box' }} />
-
-            <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Ferramentas</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
-              {[
-                { id: 'n8n', label: 'n8n' },
-                { id: 'evolution', label: 'Evolution API' },
-              ].map((t) => (
-                <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: `1px solid ${newEnvTools[t.id] ? colors.brand + '40' : colors.border}`, background: newEnvTools[t.id] ? colors.brand + '08' : 'transparent', cursor: 'pointer', transition: 'all 0.2s' }}>
-                  <input type="checkbox" checked={newEnvTools[t.id]} onChange={(e) => setNewEnvTools((p) => ({ ...p, [t.id]: e.target.checked }))}
-                    style={{ accentColor: colors.brand }} />
-                  <ToolLogo toolId={t.id} size={28} />
-                  <span style={{ fontSize: 13, fontFamily: mono, color: newEnvTools[t.id] ? '#fff' : colors.textMuted }}>{t.label}</span>
-                </label>
-              ))}
+          <Card className="modal-content" style={{ width: 520, padding: 28, background: '#0d0e12' }}>
+            {/* Step indicator */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+                {step === 1 && 'Criar Ambiente de Teste'}
+                {step === 2 && 'Configurar DNS'}
+                {step === 3 && (dnsResults?.allOk ? 'DNS Verificado!' : 'Verificacao de DNS')}
+              </h3>
+              {step > 1 && <span style={{ fontSize: 12, color: colors.textDim, fontFamily: mono }}>Passo {step}/3</span>}
             </div>
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <Btn onClick={handleCreate} loading={creating} disabled={!newEnvName.trim()} style={{ flex: 1, justifyContent: 'center' }}>Criar</Btn>
-              <Btn variant="ghost" onClick={() => setShowCreateModal(false)}>Cancelar</Btn>
-            </div>
+            {/* Step 1 — Name & Tools */}
+            {step === 1 && (
+              <>
+                <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nome do ambiente</label>
+                <input value={newEnvName} onChange={(e) => setNewEnvName(e.target.value.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase())} placeholder='Ex: teste, staging'
+                  style={{ ...inputStyle, marginBottom: 18 }} />
+
+                <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Quais ferramentas incluir?</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
+                  {[
+                    { id: 'n8n', label: 'n8n' },
+                    { id: 'evolution', label: 'Evolution API' },
+                  ].map((t) => (
+                    <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: `1px solid ${newEnvTools[t.id] ? colors.brand + '40' : colors.border}`, background: newEnvTools[t.id] ? colors.brand + '08' : 'transparent', cursor: 'pointer', transition: 'all 0.2s' }}>
+                      <input type="checkbox" checked={newEnvTools[t.id]} onChange={(e) => setNewEnvTools((p) => ({ ...p, [t.id]: e.target.checked }))}
+                        style={{ accentColor: colors.brand }} />
+                      <ToolLogo toolId={t.id} size={28} />
+                      <span style={{ fontSize: 13, fontFamily: mono, color: newEnvTools[t.id] ? '#fff' : colors.textMuted }}>{t.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <Btn variant="ghost" onClick={() => setShowCreateModal(false)}>Cancelar</Btn>
+                  <Btn onClick={() => setStep(2)} disabled={!newEnvName.trim() || (!newEnvTools.n8n && !newEnvTools.evolution)}>
+                    Proximo &#8594;
+                  </Btn>
+                </div>
+              </>
+            )}
+
+            {/* Step 2 — DNS Configuration */}
+            {step === 2 && (
+              <>
+                <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.7, marginBottom: 18 }}>
+                  Antes de criar o ambiente, voce precisa apontar os subdominios abaixo para o IP do seu servidor.
+                </p>
+
+                {/* Server IP */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: `1px solid ${colors.border}`, marginBottom: 16 }}>
+                  <span style={{ fontSize: 12, color: colors.textMuted, fontFamily: mono }}>IP do servidor:</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, fontFamily: mono, color: colors.brand }}>{serverIp || '...'}</span>
+                  {serverIp && <CopyBtn text={serverIp} />}
+                </div>
+
+                {/* DNS Records Table */}
+                <Card style={{ overflow: 'hidden', marginBottom: 16 }}>
+                  <div style={{ padding: '10px 16px', borderBottom: `1px solid ${colors.border}`, display: 'flex', gap: 12 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: mono, color: colors.textDim, width: 40 }}>TIPO</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: mono, color: colors.textDim, flex: 1 }}>NOME</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: mono, color: colors.textDim, width: 130 }}>DESTINO</span>
+                    <span style={{ width: 48 }}></span>
+                  </div>
+                  {getSubdomains().map((s) => (
+                    <div key={s.subdomain} style={{ padding: '10px 16px', borderBottom: `1px solid rgba(255,255,255,0.03)`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 12, fontFamily: mono, color: colors.green, width: 40, fontWeight: 600 }}>A</span>
+                      <span style={{ fontSize: 12, fontFamily: mono, color: '#fff', flex: 1, wordBreak: 'break-all' }}>{s.subdomain}</span>
+                      <span style={{ fontSize: 12, fontFamily: mono, color: colors.brand, width: 130 }}>{serverIp}</span>
+                      <CopyBtn text={s.subdomain} />
+                    </div>
+                  ))}
+                </Card>
+
+                <button onClick={copyAll} style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8,
+                  border: `1px solid ${colors.border}`, background: 'rgba(255,255,255,0.03)',
+                  color: colors.textMuted, fontSize: 11, fontFamily: mono, cursor: 'pointer', marginBottom: 18,
+                }}>
+                  &#128203; Copiar todos
+                </button>
+
+                {/* How to */}
+                <Card style={{ padding: 16, marginBottom: 22, background: 'rgba(255,255,255,0.01)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: colors.yellow }}>&#128161; Como fazer:</div>
+                  <ol style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: colors.textMuted, lineHeight: 1.8 }}>
+                    <li>Acesse o painel de DNS do seu dominio (Cloudflare, Registro.br, Hostinger, etc)</li>
+                    <li>Crie registros do tipo <strong style={{ color: '#fff' }}>A</strong> com os dados acima</li>
+                    <li>Aguarde 2-5 minutos para propagar</li>
+                    <li>Clique em "Verificar DNS" abaixo</li>
+                  </ol>
+                </Card>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <Btn variant="ghost" onClick={() => setStep(1)}>&#8592; Voltar</Btn>
+                  <Btn onClick={handleVerifyDns} loading={verifying} disabled={verifying}>
+                    Verificar DNS
+                  </Btn>
+                </div>
+              </>
+            )}
+
+            {/* Step 3 — DNS Results */}
+            {step === 3 && dnsResults && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+                  {dnsResults.results.map((r) => (
+                    <div key={r.subdomain} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10,
+                      background: r.ok ? 'rgba(34,197,94,0.05)' : 'rgba(239,68,68,0.05)',
+                      border: `1px solid ${r.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
+                    }}>
+                      <span style={{ fontSize: 16 }}>{r.ok ? '&#10004;' : '&#10008;'}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontFamily: mono, color: '#fff', wordBreak: 'break-all' }}>{r.subdomain}</div>
+                        <div style={{ fontSize: 11, fontFamily: mono, color: r.ok ? colors.green : colors.red }}>
+                          {r.ok ? `→ ${r.resolved}` : (r.error || `Resolveu para ${r.resolved || 'nada'}, esperado ${r.expected}`)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {dnsResults.allOk ? (
+                  <Card style={{ padding: 14, marginBottom: 22, background: 'rgba(34,197,94,0.04)', borderColor: 'rgba(34,197,94,0.12)' }}>
+                    <div style={{ fontSize: 13, color: colors.green, fontWeight: 600 }}>Tudo certo! Pronto para criar o ambiente.</div>
+                  </Card>
+                ) : (
+                  <Card style={{ padding: 14, marginBottom: 22, background: 'rgba(234,179,8,0.04)', borderColor: 'rgba(234,179,8,0.12)' }}>
+                    <div style={{ fontSize: 12, color: colors.yellow, lineHeight: 1.6 }}>
+                      Alguns DNS ainda nao estao apontados. Aguarde alguns minutos e tente novamente.
+                    </div>
+                  </Card>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                  <Btn variant="ghost" onClick={() => { setStep(2); setDnsResults(null); }}>&#8592; Voltar</Btn>
+                  {!dnsResults.allOk && (
+                    <>
+                      <Btn variant="ghost" onClick={handleVerifyDns} loading={verifying}>Verificar novamente</Btn>
+                      <Btn variant="danger" onClick={handleCreate} loading={creating} disabled={creating}>Criar mesmo assim</Btn>
+                    </>
+                  )}
+                  {dnsResults.allOk && (
+                    <Btn onClick={handleCreate} loading={creating} disabled={creating}>Criar ambiente</Btn>
+                  )}
+                </div>
+              </>
+            )}
           </Card>
         </ModalOverlay>
       )}
@@ -2617,7 +2813,7 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36, padding: '0 8px' }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.9</div>
+            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v3.1</div>
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)} style={{
             background: 'none', border: 'none', color: colors.textMuted, fontSize: 20, cursor: 'pointer',

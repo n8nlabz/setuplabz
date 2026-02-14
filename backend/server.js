@@ -83,7 +83,7 @@ app.get("*", (req, res) => {
   } else {
     res.json({
       name: "N8N LABZ Setup Panel API",
-      version: "3.0.0",
+      version: "3.1.0",
       status: "running",
       docs: "Frontend not built. Run: npm run build:frontend",
     });
@@ -99,7 +99,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log("");
   console.log("  ╔══════════════════════════════════════════╗");
-  console.log("  ║     N8N LABZ Setup Panel v3.0            ║");
+  console.log("  ║     N8N LABZ Setup Panel v3.1            ║");
   console.log(`  ║     Porta: ${PORT}                          ║`);
   console.log("  ╚══════════════════════════════════════════╝");
   console.log("");
