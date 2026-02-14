@@ -340,9 +340,9 @@ networks:
     const tools = new Set();
     containers.forEach((c) => {
       const n = c.name.toLowerCase();
-      if (n.includes("n8n")) tools.add("n8n");
-      if (n.includes("evolution")) tools.add("evolution");
-      if (n.includes("traefik") || n.includes("portainer")) tools.add("portainer_traefik");
+      if (n.includes("portainer")) tools.add("portainer_traefik");
+      if (n.includes("n8n_editor") || n.includes("n8n_n8n")) tools.add("n8n");
+      if (n.includes("evolution_api") || n.includes("evolution_evolution")) tools.add("evolution");
     });
     return Array.from(tools);
   }

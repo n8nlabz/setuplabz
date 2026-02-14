@@ -148,6 +148,7 @@ class DockerService {
 
   static detectTool(name) {
     const n = name.toLowerCase();
+    if (n.includes("n8nlabz_panel")) return "panel";
     if (n.includes("n8n") && !n.includes("postgres") && !n.includes("redis")) return "n8n";
     if (n.includes("evolution")) return "evolution";
     if (n.includes("traefik")) return "traefik";
