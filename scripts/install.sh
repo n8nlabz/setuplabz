@@ -534,6 +534,10 @@ if ! command -v docker &>/dev/null; then
   systemctl enable docker >/dev/null 2>&1 && systemctl start docker >/dev/null 2>&1
 fi
 
+# Docker DNS — garante resolucao de subdominios recem-criados
+echo '{"dns": ["8.8.8.8", "8.8.4.4"]}' > /etc/docker/daemon.json
+systemctl restart docker
+
 # Swarm
 SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null)
 if [ "$SWARM_STATE" != "active" ]; then
