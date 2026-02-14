@@ -359,7 +359,7 @@ function InstallPage() {
   useEffect(() => {
     const cleanup = connectWebSocket((msg) => {
       if (msg.type === 'install_log') {
-        addLog(msg.text, msg.type);
+        addLog(msg.text, msg.logType || 'info');
       }
     });
     return cleanup;
@@ -370,7 +370,6 @@ function InstallPage() {
   };
 
   const openModal = (tool) => {
-    if (installed.includes(tool.id)) return;
     setModal(tool);
     setResultCreds(null);
   };
@@ -675,8 +674,9 @@ function CredentialsPage() {
   const [showPass, setShowPass] = useState({});
 
   useEffect(() => {
-    fetchCredentials().then(setCreds).catch(() => setCreds({}));
-    setLoading(false);
+    fetchCredentials()
+      .then((data) => { setCreds(data); setLoading(false); })
+      .catch(() => { setCreds({}); setLoading(false); });
   }, []);
 
   const togglePass = (key) => setShowPass((p) => ({ ...p, [key]: !p[key] }));

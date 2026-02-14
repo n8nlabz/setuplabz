@@ -19,7 +19,7 @@ router.post("/:toolId", async (req, res) => {
 
     const onLog = (entry) => {
       if (req.app.locals.broadcast) {
-        req.app.locals.broadcast({ type: "install_log", toolId: req.params.toolId, ...entry });
+        req.app.locals.broadcast({ type: "install_log", toolId: req.params.toolId, text: entry.text, logType: entry.type, time: entry.time });
       }
     };
 
