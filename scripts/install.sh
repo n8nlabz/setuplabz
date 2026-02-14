@@ -157,10 +157,10 @@ cat > "$TRAEFIK_COMPOSE" <<EOF
 version: "3.8"
 services:
   traefik:
-    image: traefik:v3.5.3
+    image: traefik:v2.11
     command:
       - "--api.dashboard=false"
-      - "--providers.swarm=true"
+      - "--providers.docker.swarmMode=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=${NETWORK_NAME}"
@@ -179,6 +179,8 @@ services:
       - "--log.filePath=/var/log/traefik/traefik.log"
       - "--accesslog=true"
       - "--accesslog.filepath=/var/log/traefik/access-log"
+    environment:
+      - DOCKER_API_VERSION=1.44
     volumes:
       - "vol_certificates:/etc/traefik/letsencrypt"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
