@@ -362,7 +362,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.6
+            SETUP PANEL v2.8
           </div>
         </div>
 
@@ -493,7 +493,7 @@ function DashboardPage() {
       <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>{getStatusMessage()}</p>
 
       {/* Health Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
         {/* CPU */}
         <Card style={{ padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -543,7 +543,7 @@ function DashboardPage() {
       </div>
 
       {/* Charts with side explanations */}
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
+      <div className="grid-73" style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>CPU & RAM (ultima hora)</div>
           <ResponsiveContainer width="100%" height={200}>
@@ -571,7 +571,7 @@ function DashboardPage() {
         </Card>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
+      <div className="grid-73" style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>Uso de disco (30 dias)</div>
           {metricsData.disk.length === 0 ? (
@@ -616,7 +616,7 @@ function DashboardPage() {
           </p>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
           {installed.map((toolId) => {
             const tool = TOOLS.find((t) => t.id === toolId);
             if (!tool) return null;
@@ -782,7 +782,7 @@ function InstallPage() {
       </p>
 
       {/* Tool Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
         {TOOLS.map((tool) => {
           const isInstalled = installed.includes(tool.id);
           const isInstalling = installing === tool.id;
@@ -846,7 +846,7 @@ function InstallPage() {
                 {modal.hasMode && (
                   <div style={{ marginBottom: 20 }}>
                     <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Modo de instalacao</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="grid-modal-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       {Object.entries(modal.modes).map(([key, mode]) => (
                         <div key={key} onClick={() => setN8nMode(key)} style={{
                           padding: '12px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
@@ -861,7 +861,7 @@ function InstallPage() {
                   </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
+                <div className="grid-modal-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
                   {getFields(modal).map((f) => (
                     <div key={f.key} style={{ gridColumn: f.key === 'smtp_host' || f.key === 'smtp_email' ? 'span 1' : undefined }}>
                       <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>{f.label}</label>
@@ -1262,7 +1262,7 @@ function MonitorPage() {
       </div>
 
       {/* Stats with educational descriptions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Containers', value: containers.length, color: colors.blue, edu: 'Cada ferramenta roda dentro de um "container" isolado no servidor.' },
           { label: 'Ativos', value: running, color: colors.green, edu: running === containers.length ? 'Todos os seus containers estao funcionando normalmente.' : 'Alguns containers estao parados. Verifique abaixo.' },
@@ -1455,7 +1455,7 @@ function CredentialsPage() {
           <p style={{ fontSize: 13, color: colors.textMuted }}>Nenhuma credencial encontrada. Instale uma ferramenta primeiro.</p>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 18 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 18 }}>
           {toolEntries.map(([toolId, data]) => {
             const tool = TOOLS.find((t) => t.id === toolId) || { name: toolId, color: toolColorMap[toolId] || colors.textMuted };
             const cardColor = toolColorMap[toolId] || colors.textMuted;
@@ -1625,7 +1625,7 @@ function BackupPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 28 }}>
+      <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 28 }}>
         <Card style={{ padding: 26 }}>
           <div style={{ fontSize: 36, marginBottom: 14 }}>📦</div>
           <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Criar Backup</h3>
@@ -1758,7 +1758,7 @@ function EnvironmentsPage() {
           <p style={{ fontSize: 13, color: colors.textMuted }}>Nenhum ambiente de teste criado ainda.</p>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: 14 }}>
+        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: 14 }}>
           {environments.map((env) => {
             const stacks = env.stacks || [];
             const hasN8n = stacks.some((s) => s.includes('_n8n'));
@@ -1909,7 +1909,7 @@ function CleanupPage() {
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Limpeza do Sistema</h1>
       <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>Remova recursos Docker nao utilizados para liberar espaco no disco.</p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 28 }}>
         {cleanupItems.map((item) => (
           <Card key={item.type} style={{ padding: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -2170,14 +2170,16 @@ export default function App() {
   const [view, setView] = useState('dashboard');
   const [sysInfo, setSysInfo] = useState(null);
   const [showPwaBanner, setShowPwaBanner] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Show PWA install banner on mobile if not installed and not dismissed
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     const dismissed = localStorage.getItem('n8nlabz_pwa_dismissed');
     const isMobile = /Mobi|Android/i.test(navigator.userAgent);
     if (isMobile && !isStandalone && !dismissed) setShowPwaBanner(true);
   }, []);
+
+  const navigateTo = (id) => { setView(id); setSidebarOpen(false); };
 
   useEffect(() => {
     if (authed) {
@@ -2207,9 +2209,58 @@ export default function App() {
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes spin { to { transform:rotate(360deg); } }
         @keyframes progressBar { 0% { width:5%; } 50% { width:70%; } 100% { width:95%; } }
+
+        .mobile-header { display: none; }
+        .sidebar-overlay { display: none; }
+
+        @media (max-width: 768px) {
+          .mobile-header {
+            display: flex !important;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            background: rgba(0,0,0,0.4);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            position: sticky;
+            top: 0;
+            z-index: 998;
+          }
+          .n8n-sidebar {
+            position: fixed !important;
+            left: -280px;
+            top: 0;
+            height: 100vh;
+            width: 270px !important;
+            z-index: 1001;
+            transition: left 0.3s ease;
+            overflow-y: auto;
+          }
+          .n8n-sidebar.open { left: 0; }
+          .sidebar-overlay.show {
+            display: block !important;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            z-index: 1000;
+          }
+          .n8n-main {
+            padding: 20px 16px !important;
+          }
+          .grid-3 { grid-template-columns: 1fr !important; }
+          .grid-4 { grid-template-columns: 1fr 1fr !important; }
+          .grid-2 { grid-template-columns: 1fr !important; }
+          .grid-73 { grid-template-columns: 1fr !important; }
+          .grid-auto { grid-template-columns: 1fr !important; }
+          .grid-modal-2 { grid-template-columns: 1fr !important; }
+          .sidebar-close { display: flex !important; }
+          .n8n-main h1 { font-size: 22px !important; }
+        }
+        @media (min-width: 769px) {
+          .sidebar-close { display: none !important; }
+        }
       `}</style>
 
-      {/* PWA Install Banner (mobile only) */}
+      {/* PWA Install Banner */}
       {showPwaBanner && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000,
@@ -2227,29 +2278,46 @@ export default function App() {
         </div>
       )}
 
+      {/* Mobile Header */}
+      <div className="mobile-header">
+        <button onClick={() => setSidebarOpen(true)} style={{
+          background: 'none', border: 'none', color: colors.brand, fontSize: 24, cursor: 'pointer',
+          width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+        }}>&#9776;</button>
+        <span style={{ fontSize: 16, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</span>
+      </div>
+
+      {/* Sidebar Overlay */}
+      <div className={`sidebar-overlay ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
+
       {/* Sidebar */}
-      <aside style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ marginBottom: 36, padding: '0 8px' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.6</div>
+      <aside className={`n8n-sidebar ${sidebarOpen ? 'open' : ''}`} style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(7,8,10,0.98)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36, padding: '0 8px' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
+            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.8</div>
+          </div>
+          <button className="sidebar-close" onClick={() => setSidebarOpen(false)} style={{
+            background: 'none', border: 'none', color: colors.textMuted, fontSize: 20, cursor: 'pointer',
+            width: 36, height: 36, alignItems: 'center', justifyContent: 'center', padding: 0, borderRadius: 8,
+          }}>&#10005;</button>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {nav.map((n) => (
-            <button key={n.id} onClick={() => setView(n.id)} style={{
+            <button key={n.id} onClick={() => navigateTo(n.id)} style={{
               display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px', borderRadius: 10,
               border: 'none', background: view === n.id ? 'rgba(255,109,90,0.08)' : 'transparent',
               color: view === n.id ? colors.brand : colors.textMuted, fontSize: 13, fontWeight: 500,
               cursor: 'pointer', fontFamily: sans, textAlign: 'left',
               borderLeft: view === n.id ? `2px solid ${colors.brand}` : '2px solid transparent',
-              transition: 'all 0.2s',
+              transition: 'all 0.2s', minHeight: 44,
             }}>
               <span style={{ fontSize: 16 }}>{n.icon}</span>{n.label}
             </button>
           ))}
         </nav>
 
-        {/* Server info */}
         <div style={{ marginTop: 'auto' }}>
           <Card style={{ padding: 14 }}>
             <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.1em', marginBottom: 8 }}>SERVIDOR</div>
@@ -2278,6 +2346,7 @@ export default function App() {
           <button onClick={() => { clearToken(); setAuthed(false); }} style={{
             width: '100%', marginTop: 12, padding: '10px', borderRadius: 8, border: `1px solid ${colors.border}`,
             background: 'transparent', color: colors.textDim, fontSize: 11, fontFamily: mono, cursor: 'pointer',
+            minHeight: 44,
           }}>
             Sair
           </button>
@@ -2285,7 +2354,7 @@ export default function App() {
       </aside>
 
       {/* Main */}
-      <main style={{ flex: 1, padding: '30px 36px', overflowY: 'auto' }}>
+      <main className="n8n-main" style={{ flex: 1, padding: '30px 36px', overflowY: 'auto' }}>
         {view === 'dashboard' && <DashboardPage />}
         {view === 'install' && <InstallPage />}
         {view === 'monitor' && <MonitorPage />}
