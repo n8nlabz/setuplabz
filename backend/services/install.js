@@ -26,6 +26,11 @@ class InstallService {
     return {};
   }
 
+  static getNetworkName() {
+    const config = this.loadConfig();
+    return config.network_name || "network_public";
+  }
+
   static getSuggestedSubdomains() {
     const config = this.loadConfig();
     const base = config.domain_base;
@@ -65,7 +70,7 @@ class InstallService {
       const pass = config.portainer_password;
       if (!pass) return null;
       const result = DockerService.run(
-        "curl -s -X POST http://localhost:9000/api/auth " +
+        "curl -s -X POST http://portainer_portainer:9000/api/auth " +
         '-H "Content-Type: application/json" ' +
         "-d '" + JSON.stringify({ Username: user, Password: pass }) + "'"
       );
@@ -80,14 +85,14 @@ class InstallService {
     try {
       const endpoints = JSON.parse(
         DockerService.run(
-          'curl -s http://localhost:9000/api/endpoints -H "Authorization: Bearer ' + token + '"'
+          'curl -s http://portainer_portainer:9000/api/endpoints -H "Authorization: Bearer ' + token + '"'
         )
       );
       if (!endpoints || endpoints.length === 0) return null;
       const endpointId = endpoints[0].Id;
       const swarmInfo = JSON.parse(
         DockerService.run(
-          "curl -s http://localhost:9000/api/endpoints/" + endpointId + '/docker/swarm -H "Authorization: Bearer ' + token + '"'
+          "curl -s http://portainer_portainer:9000/api/endpoints/" + endpointId + '/docker/swarm -H "Authorization: Bearer ' + token + '"'
         )
       );
       return { endpointId, swarmId: swarmInfo.ID };
@@ -115,7 +120,7 @@ class InstallService {
     try {
       const result = DockerService.run(
         "curl -s -X POST " +
-        '"http://localhost:9000/api/stacks/create/swarm/string?endpointId=' + info.endpointId + '" ' +
+        '"http://portainer_portainer:9000/api/stacks/create/swarm/string?endpointId=' + info.endpointId + '" ' +
         '-H "Authorization: Bearer ' + token + '" ' +
         '-H "Content-Type: application/json" ' +
         "-d @" + payloadPath
@@ -277,7 +282,7 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: network_public\n";
+      "    name: " + this.getNetworkName() + "\n";
   }
 
   static getPortainerCompose(c) {
@@ -316,7 +321,7 @@ class InstallService {
       '        - "traefik.http.routers.portainer.entrypoints=websecure"\n' +
       '        - "traefik.http.routers.portainer.tls.certresolver=letsencryptresolver"\n' +
       '        - "traefik.http.services.portainer.loadbalancer.server.port=9000"\n' +
-      '        - "traefik.docker.network=network_public"\n' +
+      '        - "traefik.docker.network=' + this.getNetworkName() + '"\n' +
       "\n" +
       "volumes:\n" +
       "  portainer_data:\n" +
@@ -326,7 +331,7 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: network_public\n" +
+      "    name: " + this.getNetworkName() + "\n" +
       "  agent_network:\n" +
       "    driver: overlay\n" +
       "    attachable: true\n";
@@ -388,7 +393,7 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: network_public\n";
+      "    name: " + this.getNetworkName() + "\n";
   }
 
   static getN8nQueueCompose(c) {
@@ -549,7 +554,7 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: network_public\n";
+      "    name: " + this.getNetworkName() + "\n";
   }
 
   static getEvolutionCompose(c) {
@@ -646,7 +651,40 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: network_public\n";
+      "    name: " + this.getNetworkName() + "\n";
+  }
+
+  // ─── Portainer Admin Init ───
+
+  static async initPortainerAdmin(password, addLog) {
+    const portainerUrl = "http://portainer_portainer:9000";
+    for (let i = 0; i < 30; i++) {
+      try {
+        const status = DockerService.run(
+          'curl -s -o /dev/null -w "%{http_code}" --max-time 5 ' + portainerUrl + "/api/status"
+        );
+        if (status.trim() === "200") {
+          const payload = JSON.stringify({ Username: "admin", Password: password });
+          const payloadPath = "/tmp/portainer-init.json";
+          fs.writeFileSync(payloadPath, payload);
+          try {
+            DockerService.run(
+              "curl -s -X POST " + portainerUrl + "/api/users/admin/init " +
+              '-H "Content-Type: application/json" ' +
+              "-d @" + payloadPath
+            );
+            if (addLog) addLog("Admin do Portainer configurado!", "success");
+          } catch {
+            if (addLog) addLog("Portainer pode já ter admin configurado.", "info");
+          } finally {
+            try { fs.unlinkSync(payloadPath); } catch {}
+          }
+          return;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+    if (addLog) addLog("Portainer ainda inicializando. Configure o admin no primeiro acesso.", "info");
   }
 
   // ─── Core Install ───
@@ -663,20 +701,21 @@ class InstallService {
 
     try {
       addLog("Verificando rede Docker...", "info");
-      DockerService.ensureNetwork("network_public", "overlay");
+      DockerService.ensureNetwork(this.getNetworkName(), "overlay");
 
       let compose, stackName, credentials = {};
 
       switch (toolId) {
         case "portainer": {
           stackName = "portainer";
+          const portainerPass = config.admin_password || this.genPass();
           addLog("Gerando configuração Portainer + Agent...", "info");
           compose = this.getPortainerCompose(config);
           credentials = {
             url: "https://" + config.domain_portainer,
             domain: config.domain_portainer,
             username: "admin",
-            password: config.admin_password || "Configurar no primeiro acesso",
+            password: portainerPass,
           };
           break;
         }
@@ -767,6 +806,16 @@ class InstallService {
       const ready = await this.waitForService(stackName + "_", 180000);
       if (!ready) {
         addLog("Timeout aguardando serviço, mas o deploy foi iniciado.", "info");
+      }
+
+      // Portainer: init admin + save config for API access
+      if (toolId === "portainer") {
+        await this.initPortainerAdmin(credentials.password, (text, type) => addLog(text, type));
+        const cfg = this.loadConfig();
+        cfg.portainer_domain = credentials.domain;
+        cfg.portainer_username = "admin";
+        cfg.portainer_password = credentials.password;
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
       }
 
       this.saveCredentials(toolId, credentials);

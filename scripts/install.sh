@@ -42,7 +42,7 @@ echo -e "  Vamos preparar sua VPS em poucos minutos."
 echo -e "  Relaxa que é tudo automático 😎\n"
 
 # ══════════════════════════════════════
-# COLETA DE DADOS (3 perguntas)
+# COLETA DE DADOS (5 perguntas)
 # ══════════════════════════════════════
 log_step "Configuração inicial"
 echo ""
@@ -85,14 +85,25 @@ done
 
 ADMIN_PASS_HASH=$(echo -n "$ADMIN_PASS" | sha256sum | cut -d' ' -f1)
 
+printf "  🏷️  Nome do servidor (default: n8nlabz): " >&2
+read SERVER_NAME < /dev/tty
+SERVER_NAME=$(echo "$SERVER_NAME" | xargs)
+[ -z "$SERVER_NAME" ] && SERVER_NAME="n8nlabz"
+
+DEFAULT_NETWORK="${SERVER_NAME}_network"
+printf "  🌐 Nome da rede Docker interna (default: ${DEFAULT_NETWORK}): " >&2
+read NETWORK_NAME < /dev/tty
+NETWORK_NAME=$(echo "$NETWORK_NAME" | xargs)
+[ -z "$NETWORK_NAME" ] && NETWORK_NAME="$DEFAULT_NETWORK"
+
 DASHBOARD_DOMAIN="dashboard.${BASE_DOMAIN}"
-PORTAINER_DOMAIN="portainer.${BASE_DOMAIN}"
 
 echo ""
 log_ok "Domínio base: ${BASE_DOMAIN}"
 log_ok "Email: ${ADMIN_EMAIL}"
+log_ok "Servidor: ${SERVER_NAME}"
+log_ok "Rede: ${NETWORK_NAME}"
 log_ok "Painel: ${DASHBOARD_DOMAIN}"
-log_ok "Portainer: ${PORTAINER_DOMAIN}"
 echo ""
 
 # ══════════════════════════════════════
@@ -134,12 +145,12 @@ fi
 
 # ── Rede ──
 log_step "🌐 Rede interna"
-log_info "Configurando a rede interna... (pra suas ferramentas se comunicarem)"
-if docker network ls | grep -q network_public; then
-  log_ok "network_public já existe"
+log_info "Configurando a rede '${NETWORK_NAME}'... (pra suas ferramentas se comunicarem)"
+if docker network ls --format '{{.Name}}' | grep -qx "${NETWORK_NAME}"; then
+  log_ok "${NETWORK_NAME} já existe"
 else
-  docker network create --driver overlay --attachable network_public >/dev/null 2>&1
-  log_ok "Rede network_public criada!"
+  docker network create --driver overlay --attachable "${NETWORK_NAME}" >/dev/null 2>&1
+  log_ok "Rede ${NETWORK_NAME} criada!"
 fi
 
 # ── Volumes ──
@@ -167,7 +178,7 @@ services:
       - "--providers.swarm=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=network_public"
+      - "--providers.docker.network=__NETWORK_NAME__"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
@@ -216,113 +227,15 @@ volumes:
 networks:
   network_public:
     external: true
-    name: network_public
+    name: __NETWORK_NAME__
 TRAEFIKEOF
 
 sed -i "s|__ADMIN_EMAIL__|${ADMIN_EMAIL}|g" "$TRAEFIK_COMPOSE"
+sed -i "s|__NETWORK_NAME__|${NETWORK_NAME}|g" "$TRAEFIK_COMPOSE"
 
 docker stack deploy -c "$TRAEFIK_COMPOSE" traefik >/dev/null 2>&1
 rm -f "$TRAEFIK_COMPOSE"
 log_ok "Traefik rodando com SSL via Let's Encrypt!"
-
-# ══════════════════════════════════════
-# PORTAINER + AGENT
-# ══════════════════════════════════════
-log_step "🐳 Portainer (Gerenciador de Containers)"
-log_info "Instalando Portainer + Agent..."
-
-PORTAINER_COMPOSE="/tmp/portainer-compose.yml"
-cat > "$PORTAINER_COMPOSE" <<'PORTAINEREOF'
-version: "3.8"
-services:
-  agent:
-    image: portainer/agent:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker/volumes:/var/lib/docker/volumes
-    networks:
-      - agent_network
-    deploy:
-      mode: global
-      placement:
-        constraints:
-          - node.platform.os == linux
-
-  portainer:
-    image: portainer/portainer-ce:latest
-    command: -H tcp://tasks.agent:9001 --tlsskipverify
-    volumes:
-      - portainer_data:/data
-    networks:
-      - network_public
-      - agent_network
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.portainer.rule=Host(`__PORTAINER_DOMAIN__`)"
-        - "traefik.http.routers.portainer.entrypoints=websecure"
-        - "traefik.http.routers.portainer.tls.certresolver=letsencryptresolver"
-        - "traefik.http.services.portainer.loadbalancer.server.port=9000"
-        - "traefik.docker.network=network_public"
-
-volumes:
-  portainer_data:
-    external: true
-    name: portainer_data
-
-networks:
-  network_public:
-    external: true
-    name: network_public
-  agent_network:
-    driver: overlay
-    attachable: true
-PORTAINEREOF
-
-sed -i "s|__PORTAINER_DOMAIN__|${PORTAINER_DOMAIN}|g" "$PORTAINER_COMPOSE"
-
-docker stack deploy -c "$PORTAINER_COMPOSE" portainer >/dev/null 2>&1
-rm -f "$PORTAINER_COMPOSE"
-log_ok "Portainer deployado!"
-
-# ── Aguardar Portainer ficar online ──
-log_info "Aguardando Portainer ficar online..."
-
-MAX_WAIT=300
-WAITED=0
-PORTAINER_READY=false
-
-while [ $WAITED -lt $MAX_WAIT ]; do
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://localhost:9000/api/status" 2>/dev/null || echo "000")
-  if [ "$HTTP_CODE" = "200" ]; then
-    PORTAINER_READY=true
-    break
-  fi
-  sleep 5
-  WAITED=$((WAITED + 5))
-done
-
-if [ "$PORTAINER_READY" = "true" ]; then
-  log_ok "Portainer online!"
-
-  # Auto-criar admin
-  INIT_RESPONSE=$(curl -s -X POST "http://localhost:9000/api/users/admin/init" \
-    -H "Content-Type: application/json" \
-    -d "{\"Username\":\"admin\",\"Password\":\"${ADMIN_PASS}\"}" 2>/dev/null)
-
-  if echo "$INIT_RESPONSE" | jq -e '.Id' >/dev/null 2>&1; then
-    log_ok "Admin do Portainer configurado automaticamente"
-  else
-    log_warn "Portainer pode já ter um admin configurado"
-  fi
-else
-  log_warn "Portainer não respondeu em 5 minutos. Configure o admin manualmente em https://${PORTAINER_DOMAIN}"
-fi
 
 # ══════════════════════════════════════
 # PAINEL N8N LABZ
@@ -364,16 +277,14 @@ IP=$(curl -s --max-time 5 ifconfig.me || hostname -I | awk '{print $1}')
 
 cat > "$INSTALL_DIR/config.json" <<EOF
 {
+  "server_name": "${SERVER_NAME}",
   "domain_base": "${BASE_DOMAIN}",
   "email_ssl": "${ADMIN_EMAIL}",
   "dashboard_domain": "${DASHBOARD_DOMAIN}",
   "admin_email": "${ADMIN_EMAIL}",
   "admin_password_hash": "${ADMIN_PASS_HASH}",
-  "portainer_domain": "${PORTAINER_DOMAIN}",
-  "portainer_username": "admin",
-  "portainer_password": "${ADMIN_PASS}",
   "ip": "${IP}",
-  "network_name": "network_public",
+  "network_name": "${NETWORK_NAME}",
   "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
@@ -440,11 +351,12 @@ services:
 networks:
   network_public:
     external: true
-    name: network_public
+    name: __NETWORK_NAME__
 COMPOSEEOF
 
 sed -i "s|__INSTALL_DIR__|${INSTALL_DIR}|g" "$PANEL_COMPOSE"
 sed -i "s|__DASHBOARD_DOMAIN__|${DASHBOARD_DOMAIN}|g" "$PANEL_COMPOSE"
+sed -i "s|__NETWORK_NAME__|${NETWORK_NAME}|g" "$PANEL_COMPOSE"
 
 docker stack deploy -c "$PANEL_COMPOSE" panel >/dev/null 2>&1
 rm -f "$PANEL_COMPOSE"
@@ -469,19 +381,22 @@ echo -e "  ${BOLD}🔑 Login:${NC}"
 echo -e "  ${CYAN}   Email: ${ADMIN_EMAIL}${NC}"
 echo -e "  ${CYAN}   Senha: (a que você definiu)${NC}"
 echo ""
-echo -e "  ${BOLD}🐳 Portainer:${NC}"
-echo -e "  ${CYAN}   https://${PORTAINER_DOMAIN}${NC}"
-echo -e "  ${CYAN}   Usuário: admin${NC}"
-echo -e "  ${CYAN}   Senha: (mesma do painel)${NC}"
+echo -e "  ${BOLD}📦 Ferramentas disponíveis no painel:${NC}"
+echo -e "  ${CYAN}   Portainer, n8n, Evolution API${NC}"
+echo -e "  ${CYAN}   Instale tudo pelo dashboard com 1 clique!${NC}"
 echo ""
 echo -e "  ${YELLOW}⚠️  Configure o DNS dos subdomínios apontando para: ${IP}${NC}"
 echo ""
-echo -e "  ${BOLD}Subdomínios para configurar no DNS:${NC}"
+echo -e "  ${BOLD}Subdomínios sugeridos para configurar no DNS:${NC}"
 echo -e "  ${CYAN}   dashboard.${BASE_DOMAIN}  →  ${IP}${NC}"
 echo -e "  ${CYAN}   portainer.${BASE_DOMAIN}  →  ${IP}${NC}"
 echo -e "  ${CYAN}   n8n.${BASE_DOMAIN}        →  ${IP}${NC}"
 echo -e "  ${CYAN}   webhook.${BASE_DOMAIN}    →  ${IP}${NC}"
 echo -e "  ${CYAN}   evolution.${BASE_DOMAIN}  →  ${IP}${NC}"
+echo ""
+echo -e "  ${BOLD}Informações do servidor:${NC}"
+echo -e "  ${CYAN}   Nome: ${SERVER_NAME}${NC}"
+echo -e "  ${CYAN}   Rede: ${NETWORK_NAME}${NC}"
 echo ""
 echo -e "  ${BOLD}Comandos úteis:${NC}"
 echo -e "  ${CYAN}  docker service ls${NC}                                    — Serviços"
