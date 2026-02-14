@@ -16,6 +16,141 @@ const colors = {
   text: '#fff', textMuted: 'rgba(255,255,255,0.45)', textDim: 'rgba(255,255,255,0.25)',
 };
 
+// ─── SVG Logo Components ───
+function N8nLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#ff6d5a"/>
+      <text x="20" y="26" textAnchor="middle" fill="white" fontWeight="bold" fontSize="14" fontFamily="monospace">n8n</text>
+    </svg>
+  );
+}
+
+function EvolutionLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#25d366"/>
+      <path d="M20 9C14 9 9 13.6 9 19.2c0 2 .6 3.8 1.7 5.3l-1.1 4.1 4.3-1.1c1.5.9 3.2 1.4 5.1 1.4C26 28.9 31 24.3 31 18.7 31 13.6 26 9 20 9zm0 17.5c-1.5 0-2.9-.4-4.1-1.1l-.3-.2-2.9.8.8-2.8-.2-.3c-.9-1.3-1.4-2.8-1.4-4.4 0-4.3 3.7-7.7 8.1-7.7s8.1 3.4 8.1 7.7c0 4.3-3.7 7.7-8.1 8z" fill="white" opacity="0.95"/>
+    </svg>
+  );
+}
+
+function PortainerLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#13b5ea"/>
+      <rect x="10" y="17" width="8" height="8" rx="2" fill="white"/>
+      <rect x="20" y="17" width="8" height="8" rx="2" fill="white" opacity="0.7"/>
+      <rect x="10" y="10" width="8" height="5" rx="1.5" fill="white" opacity="0.5"/>
+      <rect x="20" y="10" width="8" height="5" rx="1.5" fill="white" opacity="0.35"/>
+      <rect x="29" y="17" width="3" height="8" rx="1" fill="white" opacity="0.3"/>
+    </svg>
+  );
+}
+
+function PostgresLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#336791"/>
+      <ellipse cx="20" cy="15" rx="8" ry="5" fill="none" stroke="white" strokeWidth="2"/>
+      <path d="M12 15v9c0 2.8 3.6 5 8 5s8-2.2 8-5v-9" fill="none" stroke="white" strokeWidth="2"/>
+      <path d="M12 20.5c0 2.5 3.6 4.5 8 4.5s8-2 8-4.5" fill="none" stroke="white" strokeWidth="1.5" opacity="0.4"/>
+    </svg>
+  );
+}
+
+function RedisLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#dc382d"/>
+      <polygon points="20,10 28,16 28,24 20,30 12,24 12,16" fill="none" stroke="white" strokeWidth="2"/>
+      <polygon points="20,14 24,17 24,23 20,26 16,23 16,17" fill="white" opacity="0.25"/>
+      <circle cx="20" cy="20" r="3" fill="white"/>
+    </svg>
+  );
+}
+
+function TraefikLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#1a8b8d"/>
+      <circle cx="13" cy="13" r="3" fill="white"/>
+      <circle cx="27" cy="13" r="3" fill="white" opacity="0.7"/>
+      <circle cx="13" cy="27" r="3" fill="white" opacity="0.7"/>
+      <circle cx="27" cy="27" r="3" fill="white"/>
+      <line x1="16" y1="13" x2="24" y2="13" stroke="white" strokeWidth="1.5" opacity="0.5"/>
+      <line x1="13" y1="16" x2="13" y2="24" stroke="white" strokeWidth="1.5" opacity="0.5"/>
+      <line x1="27" y1="16" x2="27" y2="24" stroke="white" strokeWidth="1.5" opacity="0.5"/>
+      <line x1="16" y1="27" x2="24" y2="27" stroke="white" strokeWidth="1.5" opacity="0.5"/>
+      <line x1="15.5" y1="15.5" x2="24.5" y2="24.5" stroke="white" strokeWidth="1.5" opacity="0.3"/>
+    </svg>
+  );
+}
+
+function DockerLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#2496ed"/>
+      <rect x="8" y="20" width="5" height="4" rx="0.8" fill="white"/>
+      <rect x="14" y="20" width="5" height="4" rx="0.8" fill="white"/>
+      <rect x="20" y="20" width="5" height="4" rx="0.8" fill="white"/>
+      <rect x="14" y="15" width="5" height="4" rx="0.8" fill="white" opacity="0.7"/>
+      <rect x="20" y="15" width="5" height="4" rx="0.8" fill="white" opacity="0.7"/>
+      <rect x="20" y="10" width="5" height="4" rx="0.8" fill="white" opacity="0.5"/>
+      <path d="M26 22c2-1 4-0.5 5 0.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
+    </svg>
+  );
+}
+
+function PanelLogo({ size = 40 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+      <rect width="40" height="40" rx="10" fill="#ff6d5a"/>
+      <rect x="9" y="12" width="22" height="16" rx="3" fill="none" stroke="white" strokeWidth="2"/>
+      <line x1="9" y1="18" x2="31" y2="18" stroke="white" strokeWidth="1.5" opacity="0.5"/>
+      <circle cx="13" cy="15" r="1.2" fill="white" opacity="0.7"/>
+      <circle cx="17" cy="15" r="1.2" fill="white" opacity="0.7"/>
+      <circle cx="21" cy="15" r="1.2" fill="white" opacity="0.7"/>
+    </svg>
+  );
+}
+
+function ToolLogo({ toolId, size = 40 }) {
+  const logos = { n8n: N8nLogo, evolution: EvolutionLogo, portainer: PortainerLogo, postgres: PostgresLogo, redis: RedisLogo, traefik: TraefikLogo, docker: DockerLogo, panel: PanelLogo };
+  const Comp = logos[toolId];
+  if (Comp) return <Comp size={size} />;
+  return (
+    <div style={{ width: size, height: size, borderRadius: size / 4, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.4, color: colors.textDim }}>?</div>
+  );
+}
+
+// ─── Educational Helpers ───
+function ProgressBar({ value }) {
+  const pct = Math.min(Math.max(value || 0, 0), 100);
+  const barColor = pct < 60 ? colors.green : pct < 80 ? colors.yellow : colors.red;
+  return (
+    <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }}>
+      <div style={{ width: pct + '%', height: '100%', borderRadius: 4, background: barColor, transition: 'width 0.5s ease' }} />
+    </div>
+  );
+}
+
+function getResourceText(type, value) {
+  if (type === 'cpu') {
+    if (value < 30) return 'Seu servidor esta tranquilo. A CPU processa todas as tarefas das suas automacoes. Abaixo de 70% esta tudo bem.';
+    if (value < 70) return 'Uso moderado. Suas automacoes estao rodando normalmente.';
+    return 'Uso alto! Verifique se ha automacoes travadas ou loops infinitos.';
+  }
+  if (type === 'ram') {
+    if (value < 50) return 'Memoria de sobra! A RAM e usada pelas ferramentas para processar dados. Se passar de 80%, considere fazer upgrade da VPS.';
+    if (value < 80) return 'Uso saudavel de memoria. A RAM e usada pelas ferramentas para processar dados.';
+    return 'Memoria ficando apertada. Considere fazer upgrade da VPS.';
+  }
+  if (value < 50) return 'Espaco de sobra no disco! Aqui ficam seus workflows, banco de dados e instancias do WhatsApp.';
+  if (value < 80) return 'Disco em uso moderado. Fique de olho.';
+  return 'Disco quase cheio! Va em "Limpeza" no menu lateral para liberar espaco.';
+}
+
 const TOOLS = [
   {
     id: 'portainer', name: 'Portainer', icon: '🐳', color: colors.blue,
@@ -225,7 +360,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.3
+            SETUP PANEL v2.6
           </div>
         </div>
 
@@ -292,10 +427,8 @@ function DashboardPage() {
     fetchCredentials().then(setCreds).catch(() => {});
   }, []);
 
-  // Helper: parse container base name (before first dot = swarm replica suffix)
   const parseBase = (name) => { const d = name.indexOf('.'); return d > 0 ? name.slice(0, d) : name; };
 
-  // Helper: filter only main stack containers (exclude test envs)
   const getMainContainers = (toolId) => {
     return containers.filter((c) => {
       const base = parseBase(c.name).toLowerCase();
@@ -322,22 +455,29 @@ function DashboardPage() {
 
   const running = containers.filter((c) => c.state === 'running').length;
   const ramPerc = sysInfo ? Math.round((sysInfo.ram_used_mb / sysInfo.ram_total_mb) * 100) : 0;
+  const cpuPerc = metricsData.realtime.length > 0 ? metricsData.realtime[metricsData.realtime.length - 1].cpu : 0;
+  const diskPerc = sysInfo ? parseFloat(String(sysInfo.disk_percentage || '0').replace('%', '')) : 0;
 
-  // Smart greeting
-  const getGreeting = () => {
-    if (installed.length === 0) return 'Visao geral do seu servidor.';
+  const getTimeGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Bom dia!';
+    if (h < 18) return 'Boa tarde!';
+    return 'Boa noite!';
+  };
+
+  const getStatusMessage = () => {
+    if (installed.length === 0) return 'Visao geral do seu servidor. Instale suas ferramentas para comecar.';
     const statuses = installed.map((toolId) => {
       const tc = getMainContainers(toolId);
-      const anyRunning = tc.some((c) => c.state === 'running');
-      return { toolId, anyRunning };
+      return { toolId, anyRunning: tc.some((c) => c.state === 'running') };
     });
-    const allOk = statuses.every((s) => s.anyRunning);
-    const allDown = statuses.every((s) => !s.anyRunning);
-    if (allOk) return 'Tudo funcionando normalmente. Seus servicos estao online.';
-    if (allDown) return 'Atencao: nenhum servico esta respondendo. Verifique o monitoramento.';
+    if (statuses.every((s) => s.anyRunning)) return 'Tudo funcionando normalmente. Seus servicos estao online.';
+    if (statuses.every((s) => !s.anyRunning)) return 'Atencao: nenhum servico esta respondendo. Verifique o monitoramento.';
     const down = statuses.filter((s) => !s.anyRunning).map((s) => TOOLS.find((t) => t.id === s.toolId)?.name || s.toolId);
     return `Atencao: ${down.join(', ')} ${down.length === 1 ? 'esta parado' : 'estao parados'}.`;
   };
+
+  const toolDescs = { n8n: 'Plataforma de automacao de workflows', evolution: 'API para integracao com WhatsApp', portainer: 'Gerenciamento visual de containers' };
 
   const chartTooltipStyle = {
     contentStyle: { background: '#1a1a2e', border: `1px solid ${colors.border}`, borderRadius: 8, fontFamily: mono, fontSize: 11 },
@@ -346,27 +486,62 @@ function DashboardPage() {
 
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
-      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Dashboard</h1>
-      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>{getGreeting()}</p>
+      {/* Greeting */}
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 6 }}>{getTimeGreeting()} <span role="img">&#128075;</span></h1>
+      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>{getStatusMessage()}</p>
 
-      {/* Server Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
-        {[
-          { label: 'IP do Servidor', value: sysInfo?.ip || '---', color: colors.brand },
-          { label: 'RAM', value: sysInfo ? `${sysInfo.ram_used_mb}/${sysInfo.ram_total_mb} MB` : '---', sub: `${ramPerc}% em uso`, color: colors.purple },
-          { label: 'Disco', value: sysInfo ? `${sysInfo.disk_used}/${sysInfo.disk_total}` : '---', sub: sysInfo?.disk_percentage || '', color: colors.yellow },
-          { label: 'Containers', value: `${running}/${containers.length}`, sub: 'ativos', color: colors.green },
-        ].map((s, i) => (
-          <Card key={i} style={{ padding: 18 }}>
-            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, fontFamily: mono, color: s.color }}>{s.value}</div>
-            {s.sub && <div style={{ fontSize: 10, color: colors.textDim, fontFamily: mono, marginTop: 2 }}>{s.sub}</div>}
-          </Card>
-        ))}
+      {/* Health Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+        {/* CPU */}
+        <Card style={{ padding: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 20 }}>&#128187;</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Processador (CPU)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 28, fontWeight: 700, fontFamily: mono, color: cpuPerc < 60 ? colors.green : cpuPerc < 80 ? colors.yellow : colors.red }}>{cpuPerc}%</span>
+          </div>
+          <ProgressBar value={cpuPerc} />
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.6, marginTop: 12, marginBottom: 0 }}>
+            {getResourceText('cpu', cpuPerc)}
+          </p>
+        </Card>
+
+        {/* RAM */}
+        <Card style={{ padding: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 20 }}>&#129504;</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Memoria RAM</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 28, fontWeight: 700, fontFamily: mono, color: ramPerc < 60 ? colors.green : ramPerc < 80 ? colors.yellow : colors.red }}>{ramPerc}%</span>
+            <span style={{ fontSize: 11, color: colors.textDim, fontFamily: mono }}>{sysInfo ? sysInfo.ram_used_mb + '/' + sysInfo.ram_total_mb + ' MB' : ''}</span>
+          </div>
+          <ProgressBar value={ramPerc} />
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.6, marginTop: 12, marginBottom: 0 }}>
+            {getResourceText('ram', ramPerc)}
+          </p>
+        </Card>
+
+        {/* Disk */}
+        <Card style={{ padding: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 20 }}>&#128190;</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Armazenamento (Disco)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 28, fontWeight: 700, fontFamily: mono, color: diskPerc < 60 ? colors.green : diskPerc < 80 ? colors.yellow : colors.red }}>{diskPerc}%</span>
+            <span style={{ fontSize: 11, color: colors.textDim, fontFamily: mono }}>{sysInfo ? sysInfo.disk_used + '/' + sysInfo.disk_total : ''}</span>
+          </div>
+          <ProgressBar value={diskPerc} />
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.6, marginTop: 12, marginBottom: 0 }}>
+            {getResourceText('disk', diskPerc)}
+          </p>
+        </Card>
       </div>
 
-      {/* Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 28 }}>
+      {/* Charts with side explanations */}
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>CPU & RAM (ultima hora)</div>
           <ResponsiveContainer width="100%" height={200}>
@@ -380,12 +555,26 @@ function DashboardPage() {
             </LineChart>
           </ResponsiveContainer>
         </Card>
+        <Card style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>&#128200; O que e isso?</div>
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.7, marginBottom: 8 }}>
+            Este grafico mostra o uso do processador (laranja) e memoria (roxo) na ultima hora.
+          </p>
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.7, marginBottom: 12 }}>
+            Se a linha subir muito, pode indicar que uma automacao esta consumindo muitos recursos.
+          </p>
+          <div style={{ fontSize: 11, color: colors.yellow, lineHeight: 1.6 }}>
+            &#128161; Dica: Automacoes com muitos dados podem causar picos temporarios. Isso e normal.
+          </div>
+        </Card>
+      </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>Uso de disco (30 dias)</div>
           {metricsData.disk.length === 0 ? (
             <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 28, opacity: 0.3 }}>📊</div>
+              <div style={{ fontSize: 28, opacity: 0.3 }}>&#128202;</div>
               <div style={{ fontSize: 12, color: colors.textDim, fontFamily: mono, textAlign: 'center' }}>Dados de disco serao coletados nas proximas horas.</div>
             </div>
           ) : (
@@ -400,20 +589,32 @@ function DashboardPage() {
             </ResponsiveContainer>
           )}
         </Card>
+        <Card style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>&#128200; O que e isso?</div>
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.7, marginBottom: 8 }}>
+            Mostra quanto do seu disco esta sendo usado ao longo dos dias.
+          </p>
+          <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.7, marginBottom: 12 }}>
+            Se crescer rapido, va em "Limpeza" no menu lateral para liberar espaco.
+          </p>
+          <div style={{ fontSize: 11, color: colors.yellow, lineHeight: 1.6 }}>
+            &#128161; Dica: Faca limpeza mensal para manter o servidor saudavel.
+          </div>
+        </Card>
       </div>
 
       {/* Installed Tools */}
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Ferramentas Instaladas</h2>
       {installed.length === 0 ? (
         <Card style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>👋</div>
+          <div style={{ marginBottom: 14 }}><ToolLogo toolId="n8n" size={48} /></div>
           <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Bem-vindo ao N8N LABZ!</h3>
           <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.6 }}>
             Nenhuma ferramenta instalada ainda. Va para a aba <strong>Instalar</strong> para comecar.
           </p>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
           {installed.map((toolId) => {
             const tool = TOOLS.find((t) => t.id === toolId);
             if (!tool) return null;
@@ -428,37 +629,36 @@ function DashboardPage() {
             const openUrl = toolCreds?.editor_url || toolCreds?.url || toolCreds?.base_url || (toolCreds?.domain ? 'https://' + toolCreds.domain : null);
 
             return (
-              <Card key={toolId} style={{ padding: 20, borderColor: tool.color + '20' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: tool.color + '12', border: `1px solid ${tool.color}25` }}>
-                    {tool.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, fontFamily: mono }}>{tool.name}</div>
-                    <StatusBadge status={anyRunning ? 'running' : 'stopped'} />
+              <Card key={toolId} style={{ padding: 22, borderColor: tool.color + '20' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
+                  <ToolLogo toolId={toolId} size={48} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, fontFamily: mono, color: tool.color }}>{tool.name}</span>
+                      <StatusBadge status={anyRunning ? 'running' : 'stopped'} />
+                    </div>
+                    <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{toolDescs[toolId] || tool.desc}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: colors.textMuted, fontFamily: mono, marginBottom: 2 }}>
-                  Versao: {version}
-                </div>
-                <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, marginBottom: 14 }}>
-                  {toolContainers.length} container{toolContainers.length !== 1 ? 's' : ''}
+                <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: mono, color: colors.textDim, marginBottom: 14 }}>
+                  <span>Versao: {version}</span>
+                  <span>{toolContainers.length} container{toolContainers.length !== 1 ? 's' : ''} {anyRunning ? 'ativos' : ''}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {openUrl && (
                     <a href={openUrl} target="_blank" rel="noopener noreferrer" style={{
-                      padding: '6px 14px', borderRadius: 10, fontSize: 11, fontWeight: 600, fontFamily: mono,
+                      padding: '7px 16px', borderRadius: 10, fontSize: 11, fontWeight: 600, fontFamily: mono,
                       background: tool.color + '12', color: tool.color, border: `1px solid ${tool.color}25`,
-                      textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
+                      textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
                     }}>
-                      Abrir
+                      &#128279; Abrir {tool.name}
                     </a>
                   )}
-                  <Btn variant="ghost" onClick={() => restartTool(toolId)} loading={actionLoading === toolId} style={{ padding: '6px 14px', fontSize: 11 }}>
-                    Reiniciar
+                  <Btn variant="ghost" onClick={() => restartTool(toolId)} loading={actionLoading === toolId} style={{ padding: '7px 16px', fontSize: 11 }}>
+                    &#128260; Reiniciar
                   </Btn>
-                  <Btn variant="ghost" onClick={() => setVersionModal(toolId)} style={{ padding: '6px 14px', fontSize: 11 }}>
-                    Alterar versao
+                  <Btn variant="ghost" onClick={() => setVersionModal(toolId)} style={{ padding: '7px 16px', fontSize: 11 }}>
+                    &#128230; Versao
                   </Btn>
                 </div>
               </Card>
@@ -591,8 +791,8 @@ function InstallPage() {
               }}>
               {isInstalled && <div style={{ position: 'absolute', top: 12, right: 14, fontSize: 10, fontFamily: mono, color: colors.green, fontWeight: 600 }}>Instalado</div>}
               {isInstalling && <div style={{ position: 'absolute', top: 12, right: 14 }}><Spinner size={14} color={tool.color} /></div>}
-              <div style={{ width: 44, height: 44, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: tool.color + '12', border: `1px solid ${tool.color}25`, marginBottom: 14 }}>
-                {tool.icon}
+              <div style={{ marginBottom: 14 }}>
+                <ToolLogo toolId={tool.id} size={48} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, fontFamily: mono, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                 {tool.name}
@@ -619,9 +819,7 @@ function InstallPage() {
         <ModalOverlay onClose={() => setModal(null)}>
           <Card style={{ width: 480, padding: 28, background: '#0d0e12', maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: modal.color + '12', border: `1px solid ${modal.color}25` }}>
-                {modal.icon}
-              </div>
+              <ToolLogo toolId={modal.id} size={48} />
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>
                   {installed.includes(modal.id) ? 'Gerenciar' : 'Instalar'} {modal.name}
@@ -998,29 +1196,29 @@ function MonitorPage() {
   };
 
   const subTooltips = {
-    'n8n_Editor': 'O editor e onde voce cria e edita seus workflows',
-    'n8n_Webhook': 'Responsavel por receber webhooks externos',
-    'n8n_Worker': 'Processa suas automacoes em segundo plano',
-    'n8n_Redis': 'Banco de dados em memoria usado para filas de execucao',
-    'n8n_n8n': 'Servico principal do n8n (modo simples)',
-    'evolution_API': 'Servico principal da Evolution API para integracao com WhatsApp',
-    'evolution_Redis': 'Cache de sessoes e dados do WhatsApp',
-    'portainer_Portainer': 'Interface visual para gerenciar containers Docker',
-    'portainer_Agent': 'Agente de comunicacao entre Portainer e Docker',
-    'postgres_PostgreSQL': 'Banco de dados relacional que armazena todos os seus dados',
-    'traefik_Traefik': 'Proxy reverso responsavel pelo SSL e roteamento de dominios',
-    'panel_Painel': 'Este painel de controle (N8N LABZ Setup Panel)',
+    'n8n_Editor': 'O Editor e a interface visual onde voce cria e edita seus workflows. E aqui que voce arrasta os nos e configura suas automacoes.',
+    'n8n_Webhook': 'O Webhook recebe chamadas externas (como mensagens do WhatsApp) e dispara seus workflows automaticamente.',
+    'n8n_Worker': 'O Worker e o "motor" que executa suas automacoes em segundo plano. Quanto mais automacoes rodando, mais o Worker trabalha.',
+    'n8n_Redis': 'O Redis e um banco de dados ultra-rapido que organiza a fila de execucao. Ele decide qual automacao roda primeiro.',
+    'n8n_n8n': 'Servico principal do n8n no modo simples. Aqui rodam o editor, webhook e execucoes em um unico container.',
+    'evolution_API': 'A API da Evolution e o que conecta seu servidor ao WhatsApp. Cada instancia conectada aparece aqui.',
+    'evolution_Redis': 'Cache de sessoes e dados do WhatsApp. Mantem as conexoes ativas e rapidas.',
+    'portainer_Portainer': 'O Portainer e a interface visual para gerenciar seus containers Docker. O painel N8N LABZ ja faz isso por voce!',
+    'portainer_Agent': 'O Agent coleta informacoes dos containers e envia para o Portainer visualizar.',
+    'postgres_PostgreSQL': 'O PostgreSQL e o banco de dados principal. Aqui ficam salvos todos os seus workflows, credenciais e dados das automacoes.',
+    'traefik_Traefik': 'O Traefik e o proxy reverso que gerencia seus dominios e certificados SSL automaticamente. Ele direciona o trafego para cada ferramenta.',
+    'panel_Painel': 'Este painel de controle (N8N LABZ Setup Panel). E daqui que voce gerencia tudo!',
   };
 
   const toolDefs = {
-    n8n: { name: 'n8n', icon: '\u26A1', color: colors.brand, desc: 'Plataforma de automacao', managed: true },
-    evolution: { name: 'Evolution API', icon: '\uD83D\uDCF1', color: colors.green, desc: 'API para WhatsApp', managed: true },
-    portainer: { name: 'Portainer', icon: '\uD83D\uDC33', color: colors.blue, desc: 'Gerenciamento Docker', managed: true },
-    postgres: { name: 'PostgreSQL', icon: '\uD83D\uDDC4\uFE0F', color: colors.purple, desc: 'Banco de dados', managed: false },
-    traefik: { name: 'Traefik', icon: '\uD83D\uDD00', color: colors.yellow, desc: 'Proxy reverso e SSL', managed: false },
-    panel: { name: 'Setup Panel', icon: '\uD83D\uDEE0\uFE0F', color: colors.brand, desc: 'Painel de controle', managed: false },
-    env: { name: 'Ambientes de Teste', icon: '\uD83E\uDDEA', color: colors.textMuted, desc: 'Containers de ambientes de teste', managed: false },
-    other: { name: 'Outros', icon: '\uD83D\uDCE6', color: colors.textMuted, desc: '', managed: false },
+    n8n: { name: 'n8n', color: colors.brand, desc: 'Plataforma de automacao', managed: true },
+    evolution: { name: 'Evolution API', color: colors.green, desc: 'API para WhatsApp', managed: true },
+    portainer: { name: 'Portainer', color: colors.blue, desc: 'Gerenciamento Docker', managed: true },
+    postgres: { name: 'PostgreSQL', color: colors.purple, desc: 'Banco de dados principal', managed: false },
+    traefik: { name: 'Traefik', color: colors.yellow, desc: 'Proxy reverso e SSL', managed: false },
+    panel: { name: 'Setup Panel', color: colors.brand, desc: 'Painel de controle', managed: false },
+    env: { name: 'Ambientes de Teste', color: colors.textMuted, desc: 'Containers de ambientes de teste', managed: false },
+    other: { name: 'Outros', color: colors.textMuted, desc: '', managed: false },
   };
 
   // ── Group containers by tool ──
@@ -1058,17 +1256,18 @@ function MonitorPage() {
         </label>
       </div>
 
-      {/* Stats */}
+      {/* Stats with educational descriptions */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
-          { label: 'Containers', value: containers.length, color: colors.blue },
-          { label: 'Ativos', value: running, color: colors.green },
-          { label: 'RAM VPS', value: sysInfo ? `${sysInfo.ram_used_mb}/${sysInfo.ram_total_mb} MB` : '---', color: colors.brand },
-          { label: 'Disco', value: sysInfo?.disk_percentage || '---', color: colors.purple },
+          { label: 'Containers', value: containers.length, color: colors.blue, edu: 'Cada ferramenta roda dentro de um "container" isolado no servidor.' },
+          { label: 'Ativos', value: running, color: colors.green, edu: running === containers.length ? 'Todos os seus containers estao funcionando normalmente.' : 'Alguns containers estao parados. Verifique abaixo.' },
+          { label: 'RAM VPS', value: sysInfo ? `${sysInfo.ram_used_mb}/${sysInfo.ram_total_mb} MB` : '---', color: colors.brand, edu: 'Memoria usada por todas as ferramentas. Mais ferramentas = mais RAM.' },
+          { label: 'Disco', value: sysInfo?.disk_percentage || '---', color: colors.purple, edu: 'Espaco usado por workflows, banco de dados e instancias.' },
         ].map((s, i) => (
           <Card key={i} style={{ padding: 18 }}>
             <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{s.label}</div>
             <div style={{ fontSize: 24, fontWeight: 700, fontFamily: mono, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: colors.textDim, marginTop: 8, lineHeight: 1.5 }}>{s.edu}</div>
           </Card>
         ))}
       </div>
@@ -1108,9 +1307,7 @@ function MonitorPage() {
               {/* Tool header */}
               <div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: def.color + '12', border: `1px solid ${def.color}25` }}>
-                    {def.icon}
-                  </div>
+                  <ToolLogo toolId={group} size={40} />
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 16, fontWeight: 700, fontFamily: mono }}>{def.name}</span>
@@ -1155,14 +1352,14 @@ function MonitorPage() {
                         }}>
                           <div style={{ fontWeight: 600, fontSize: 13, fontFamily: mono, color: '#fff', marginBottom: 8 }}>{friendly}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <Tooltip text={isRunning ? 'Este servico esta funcionando normalmente' : 'Este servico esta parado'}>
+                            <Tooltip text={isRunning ? 'Este container esta funcionando normalmente.' : 'Este container esta parado. Clique em "Iniciar" para liga-lo.'}>
                               <span style={{ width: 7, height: 7, borderRadius: '50%', background: isRunning ? colors.green : colors.red, display: 'inline-block', animation: isRunning ? 'pulse 2s infinite' : 'none' }} />
                             </Tooltip>
-                            <Tooltip text="Quanto do processador este servico esta usando. Abaixo de 50% e normal">
+                            <Tooltip text={'CPU: quanto do processador este container esta usando. Abaixo de 50% e normal. Valores muito altos podem indicar automacao travada ou loop.'}>
                               <span style={{ fontSize: 11, fontFamily: mono, color: colors.textMuted }}>{cpuVal}</span>
                             </Tooltip>
                           </div>
-                          <Tooltip text="Memoria consumida. Valores entre 100-500MB sao normais para a maioria dos servicos">
+                          <Tooltip text={'RAM: memoria que este container esta consumindo. Valores entre 100-500MB sao normais. Se passar de 800MB, pode indicar uso excessivo.'}>
                             <div style={{ fontSize: 11, fontFamily: mono, color: colors.textDim }}>{ramVal}</div>
                           </Tooltip>
                           {uptime && (
@@ -1236,7 +1433,6 @@ function CredentialsPage() {
   const sensitiveKeys = ['password', 'api_key', 'encryption_key', 'db_password', 'smtp_pass'];
   const isSensitive = (key) => sensitiveKeys.some((s) => key.toLowerCase().includes(s));
 
-  const toolIcons = { portainer: '🐳', n8n: '⚡', evolution: '📱', postgres: '🗄️' };
   const toolColorMap = { portainer: colors.blue, n8n: colors.brand, evolution: colors.green, postgres: colors.purple };
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
@@ -1256,9 +1452,8 @@ function CredentialsPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 18 }}>
           {toolEntries.map(([toolId, data]) => {
-            const tool = TOOLS.find((t) => t.id === toolId) || { name: toolId, icon: toolIcons[toolId] || '🔧', color: toolColorMap[toolId] || colors.textMuted };
+            const tool = TOOLS.find((t) => t.id === toolId) || { name: toolId, color: toolColorMap[toolId] || colors.textMuted };
             const cardColor = toolColorMap[toolId] || colors.textMuted;
-            const icon = toolIcons[toolId] || tool.icon || '🔧';
             const entries = Object.entries(data).filter(([k]) => k !== 'installed_at');
             const openUrl = data.editor_url || data.url || data.base_url || (data.domain ? 'https://' + data.domain : null);
 
@@ -1268,9 +1463,7 @@ function CredentialsPage() {
                 <div style={{ height: 3, background: cardColor }} />
                 <div style={{ padding: '16px 20px', borderBottom: `1px solid ${colors.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: cardColor + '08' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: cardColor + '15', border: `1px solid ${cardColor}25` }}>
-                      {icon}
-                    </div>
+                    <ToolLogo toolId={toolId} size={38} />
                     <span style={{ fontSize: 15, fontWeight: 700, fontFamily: mono }}>{tool.name || toolId}</span>
                   </div>
                   {openUrl && (
@@ -1610,12 +1803,18 @@ function EnvironmentsPage() {
                   <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 6 }}>Ferramentas:</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {hasN8n && (
-                      <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.brand + '12', color: colors.brand, border: `1px solid ${colors.brand}25` }}>n8n</span>
+                      <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.brand + '12', color: colors.brand, border: `1px solid ${colors.brand}25`, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <ToolLogo toolId="n8n" size={16} /> n8n
+                      </span>
                     )}
                     {hasEvolution && (
-                      <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.green + '12', color: colors.green, border: `1px solid ${colors.green}25` }}>Evolution</span>
+                      <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.green + '12', color: colors.green, border: `1px solid ${colors.green}25`, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <ToolLogo toolId="evolution" size={16} /> Evolution
+                      </span>
                     )}
-                    <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.purple + '12', color: colors.purple, border: `1px solid ${colors.purple}25` }}>PostgreSQL</span>
+                    <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.purple + '12', color: colors.purple, border: `1px solid ${colors.purple}25`, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <ToolLogo toolId="postgres" size={16} /> PostgreSQL
+                    </span>
                   </div>
                 </div>
               </Card>
@@ -1638,13 +1837,13 @@ function EnvironmentsPage() {
             <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 10 }}>Ferramentas</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
               {[
-                { id: 'n8n', label: 'n8n', icon: '⚡' },
-                { id: 'evolution', label: 'Evolution API', icon: '📱' },
+                { id: 'n8n', label: 'n8n' },
+                { id: 'evolution', label: 'Evolution API' },
               ].map((t) => (
                 <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, border: `1px solid ${newEnvTools[t.id] ? colors.brand + '40' : colors.border}`, background: newEnvTools[t.id] ? colors.brand + '08' : 'transparent', cursor: 'pointer', transition: 'all 0.2s' }}>
                   <input type="checkbox" checked={newEnvTools[t.id]} onChange={(e) => setNewEnvTools((p) => ({ ...p, [t.id]: e.target.checked }))}
                     style={{ accentColor: colors.brand }} />
-                  <span style={{ fontSize: 16 }}>{t.icon}</span>
+                  <ToolLogo toolId={t.id} size={28} />
                   <span style={{ fontSize: 13, fontFamily: mono, color: newEnvTools[t.id] ? '#fff' : colors.textMuted }}>{t.label}</span>
                 </label>
               ))}
@@ -1792,7 +1991,7 @@ export default function App() {
       <aside style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ marginBottom: 36, padding: '0 8px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.3</div>
+          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.6</div>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
