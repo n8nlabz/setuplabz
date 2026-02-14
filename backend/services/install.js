@@ -1,4 +1,5 @@
 const DockerService = require("./docker");
+const PortainerAPI = require("./portainer-api");
 const crypto = require("crypto");
 const fs = require("fs");
 
@@ -66,82 +67,32 @@ class InstallService {
 
   // ─── Portainer API Integration ───
 
-  static getPortainerToken() {
-    try {
-      const config = this.loadConfig();
-      const user = config.portainer_username || "admin";
-      const pass = config.portainer_password;
-      if (!pass) return null;
-      const result = DockerService.run(
-        "curl -s -X POST http://portainer_portainer:9000/api/auth " +
-        '-H "Content-Type: application/json" ' +
-        "-d '" + JSON.stringify({ Username: user, Password: pass }) + "'"
-      );
-      const parsed = JSON.parse(result);
-      return parsed.jwt || null;
-    } catch {
-      return null;
-    }
-  }
-
-  static getPortainerEndpointAndSwarm(token) {
-    try {
-      const endpoints = JSON.parse(
-        DockerService.run(
-          'curl -s http://portainer_portainer:9000/api/endpoints -H "Authorization: Bearer ' + token + '"'
-        )
-      );
-      if (!endpoints || endpoints.length === 0) return null;
-      const endpointId = endpoints[0].Id;
-      const swarmInfo = JSON.parse(
-        DockerService.run(
-          "curl -s http://portainer_portainer:9000/api/endpoints/" + endpointId + '/docker/swarm -H "Authorization: Bearer ' + token + '"'
-        )
-      );
-      return { endpointId, swarmId: swarmInfo.ID };
-    } catch {
-      return null;
-    }
-  }
-
-  static async deployViaPortainer(stackName, composeContent) {
-    const token = this.getPortainerToken();
-    if (!token) throw new Error("Portainer token unavailable");
-    const info = this.getPortainerEndpointAndSwarm(token);
-    if (!info) throw new Error("Portainer endpoint unavailable");
-
-    const payload = JSON.stringify({
-      name: stackName,
-      swarmID: info.swarmId,
-      stackFileContent: composeContent,
-      env: [],
-    });
-
-    const payloadPath = "/tmp/portainer-payload-" + stackName + ".json";
-    fs.writeFileSync(payloadPath, payload);
-
-    try {
-      const result = DockerService.run(
-        "curl -s -X POST " +
-        '"http://portainer_portainer:9000/api/stacks/create/swarm/string?endpointId=' + info.endpointId + '" ' +
-        '-H "Authorization: Bearer ' + token + '" ' +
-        '-H "Content-Type: application/json" ' +
-        "-d @" + payloadPath
-      );
-      const parsed = JSON.parse(result);
-      if (parsed.Id) return { success: true, method: "portainer" };
-      throw new Error(parsed.message || "Portainer API error");
-    } finally {
-      try { fs.unlinkSync(payloadPath); } catch {}
-    }
+  static async getPortainerClient() {
+    const client = new PortainerAPI();
+    await client.authenticate();
+    return client;
   }
 
   static async deployStack(stackName, composeContent) {
     const finalCompose = this.replaceBKTK(composeContent);
     try {
-      return await this.deployViaPortainer(stackName, finalCompose);
-    } catch {
+      const client = await this.getPortainerClient();
+      const result = await client.deployStack(stackName, finalCompose);
+      return { success: true, method: "portainer", action: result.action };
+    } catch (err) {
+      console.log("[DEPLOY] Portainer API falhou para " + stackName + ": " + err.message + ". Usando Docker CLI.");
       return await DockerService.deployStack(stackName, finalCompose);
+    }
+  }
+
+  static async removeStackViaPortainer(stackName) {
+    try {
+      const client = await this.getPortainerClient();
+      await client.removeStackByName(stackName);
+      return { success: true, method: "portainer" };
+    } catch (err) {
+      console.log("[REMOVE] Portainer API falhou para " + stackName + ": " + err.message + ". Usando Docker CLI.");
+      return await DockerService.removeStack(stackName);
     }
   }
 
@@ -768,7 +719,7 @@ class InstallService {
     if (addLog) addLog("Portainer ainda inicializando. Configure o admin no primeiro acesso.", "info");
   }
 
-  // ─── Update Service Image (Feature 1) ───
+  // ─── Update Service Image ───
 
   static async updateImage(toolId, version, onLog) {
     const imageMap = {
@@ -780,6 +731,33 @@ class InstallService {
     const tool = imageMap[toolId];
     if (!tool) throw new Error("Ferramenta desconhecida: " + toolId);
 
+    // Try Portainer API first: regenerate compose with new version and update stack
+    try {
+      const client = await this.getPortainerClient();
+      const stackName = toolId;
+      const existing = await client.getStackByName(stackName);
+
+      if (existing) {
+        if (onLog) onLog("Atualizando via Portainer API...", "info");
+
+        // Get current compose and replace image tags
+        let compose = existing.StackFileContent || "";
+        if (compose) {
+          // Replace image version for all matching images
+          const oldImagePattern = tool.image.replace("/", "\\/") + ":[^\\s\"]+";
+          const newImage = tool.image + ":" + version;
+          compose = compose.replace(new RegExp(oldImagePattern, "g"), newImage);
+
+          await client.updateStack(existing.Id, compose);
+          if (onLog) onLog("Stack " + stackName + " atualizada para " + newImage + " via Portainer!", "success");
+          return [{ service: stackName, success: true, method: "portainer" }];
+        }
+      }
+    } catch (err) {
+      if (onLog) onLog("Portainer API indisponivel, usando Docker CLI: " + err.message, "info");
+    }
+
+    // Fallback: docker service update per service
     const results = [];
     for (const service of tool.services) {
       try {
@@ -789,7 +767,7 @@ class InstallService {
           "docker service update --image " + fullImage + " " + service,
           { timeout: 300000 }
         );
-        results.push({ service, success: true });
+        results.push({ service, success: true, method: "docker-cli" });
         if (onLog) onLog(service + " atualizado!", "success");
       } catch (err) {
         results.push({ service, success: false, error: err.message });
@@ -964,7 +942,8 @@ class InstallService {
     const map = { portainer: "portainer", n8n: "n8n", evolution: "evolution" };
     const name = map[toolId];
     if (!name) throw new Error("Ferramenta desconhecida");
-    const result = await DockerService.removeStack(name);
+
+    const result = await this.removeStackViaPortainer(name);
 
     const creds = this.loadCredentials();
     delete creds[toolId];

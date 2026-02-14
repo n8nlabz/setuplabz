@@ -1,5 +1,6 @@
 const DockerService = require("./docker");
 const InstallService = require("./install");
+const PortainerAPI = require("./portainer-api");
 const fs = require("fs");
 
 const ENVS_PATH = "/opt/n8nlabz/environments.json";
@@ -99,9 +100,26 @@ class EnvironmentService {
 
     if (onLog) onLog("Destruindo ambiente: " + name, "info");
 
+    // Try Portainer API first, fallback to Docker CLI
+    let client = null;
+    try {
+      client = new PortainerAPI();
+      await client.authenticate();
+    } catch {
+      client = null;
+    }
+
     for (const stack of (env.stacks || [])) {
       try {
         if (onLog) onLog("Removendo stack: " + stack, "info");
+        if (client) {
+          try {
+            await client.removeStackByName(stack);
+            if (onLog) onLog("Stack " + stack + " removida via Portainer.", "info");
+            continue;
+          } catch {}
+        }
+        // Fallback Docker CLI
         await DockerService.removeStack(stack);
       } catch (err) {
         if (onLog) onLog("Aviso: " + err.message, "info");
@@ -111,7 +129,7 @@ class EnvironmentService {
     const updated = envs.filter((e) => e.name !== name);
     this.saveEnvironments(updated);
 
-    if (onLog) onLog("Ambiente '" + name + "' destruído.", "success");
+    if (onLog) onLog("Ambiente '" + name + "' destruido.", "success");
     return { success: true };
   }
 
