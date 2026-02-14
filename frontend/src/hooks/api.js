@@ -139,6 +139,24 @@ async function savePushPrefs(prefs) {
   return api('/push/prefs', { method: 'POST', body: JSON.stringify(prefs) });
 }
 
+// ─── Snapshots ───
+
+async function fetchSnapshots() {
+  return api('/snapshots');
+}
+
+async function createSnapshot() {
+  return api('/snapshots/create', { method: 'POST' });
+}
+
+async function restoreSnapshot(id) {
+  return api(`/snapshots/restore/${id}`, { method: 'POST' });
+}
+
+async function deleteSnapshot(id) {
+  return api(`/snapshots/${id}`, { method: 'DELETE' });
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -156,4 +174,5 @@ export {
   fetchEnvironments, createEnvironment, destroyEnvironment,
   fetchVapidKey, subscribePush, unsubscribePush, sendTestPush,
   fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array,
+  fetchSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot,
 };

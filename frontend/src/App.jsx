@@ -5,7 +5,8 @@ import { api, apiUpload, getToken, setToken, clearToken, connectWebSocket,
   systemCleanup, fetchCleanupInfo,
   fetchEnvironments, createEnvironment, destroyEnvironment,
   fetchVapidKey, subscribePush, unsubscribePush, sendTestPush,
-  fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array } from './hooks/api.js';
+  fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array,
+  fetchSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot } from './hooks/api.js';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 // ─── Styles ───
@@ -362,7 +363,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.8.1
+            SETUP PANEL v2.9
           </div>
         </div>
 
@@ -1612,6 +1613,18 @@ function BackupPage() {
         </div>
       </Card>
 
+      <Card style={{ padding: '16px 22px', marginBottom: 20, background: 'rgba(167,139,250,0.03)', borderColor: 'rgba(167,139,250,0.12)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>&#128161;</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Precisa de algo mais completo?</div>
+            <div style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.6 }}>
+              <strong>Snapshots</strong> salvam o estado COMPLETO do servidor (incluindo volumes Docker). Va em <strong>Snapshots</strong> no menu lateral.
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {msg && (
         <div style={{ padding: '12px 18px', borderRadius: 10, marginBottom: 20, background: msg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${msg.type === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`, color: msg.type === 'success' ? colors.green : colors.red, fontSize: 13, fontFamily: mono }}>
           {msg.text}
@@ -1660,6 +1673,260 @@ function BackupPage() {
         ))}
         {backups.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: colors.textDim, fontSize: 13 }}>Nenhum backup encontrado</div>}
       </Card>
+    </div>
+  );
+}
+
+// ─── Snapshot Page ───
+function SnapshotPage() {
+  const [snapshots, setSnapshots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [restoring, setRestoring] = useState(null);
+  const [confirmRestore, setConfirmRestore] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [wsStatus, setWsStatus] = useState(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const d = await fetchSnapshots();
+      setSnapshots(d.snapshots || []);
+    } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const cleanup = connectWebSocket((msg) => {
+      if (msg.type === 'snapshot') {
+        setWsStatus(msg);
+        if (msg.status === 'completed') {
+          refresh();
+          setCreating(false);
+          setRestoring(null);
+        }
+      }
+    });
+    return cleanup;
+  }, [refresh]);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    setMsg(null);
+    setWsStatus(null);
+    try {
+      const d = await createSnapshot();
+      setMsg({ type: 'success', text: `Snapshot criado! (${d.snapshot?.sizeFormatted || ''})` });
+      refresh();
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message });
+    }
+    setCreating(false);
+  };
+
+  const handleRestore = async (id) => {
+    setConfirmRestore(null);
+    setRestoring(id);
+    setMsg(null);
+    setWsStatus(null);
+    try {
+      await restoreSnapshot(id);
+      setMsg({ type: 'success', text: 'Snapshot restaurado com sucesso!' });
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message });
+    }
+    setRestoring(null);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Deletar este snapshot?')) return;
+    try {
+      await deleteSnapshot(id);
+      refresh();
+    } catch {}
+  };
+
+  const formatDate = (iso) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const date = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    if (diffDays === 0) return `Hoje, ${date} as ${time}`;
+    if (diffDays === 1) return `Ontem, ${date} as ${time}`;
+    return `${diffDays} dias atras, ${date} as ${time}`;
+  };
+
+  if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
+
+  return (
+    <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
+      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Snapshots</h1>
+      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>
+        Volte no tempo! Restaure seu servidor exatamente como estava.
+      </p>
+
+      {/* Create Card */}
+      <Card style={{ padding: 26, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+          <span style={{ fontSize: 32 }}>&#128248;</span>
+          <div>
+            <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>Criar Snapshot</h3>
+            <p style={{ fontSize: 12, color: colors.textMuted, lineHeight: 1.6, marginBottom: 0 }}>
+              Salva o estado completo do seu servidor: banco de dados, workflows, instancias do WhatsApp, volumes e configuracoes.
+            </p>
+          </div>
+        </div>
+        <Card style={{ padding: '14px 18px', marginBottom: 18, background: 'rgba(255,255,255,0.01)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, fontFamily: mono }}>
+              <span style={{ color: colors.green }}>&#10003;</span> Banco de dados PostgreSQL completo (todos os bancos)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, fontFamily: mono }}>
+              <span style={{ color: colors.green }}>&#10003;</span> Volumes Docker (dados do n8n, Redis, Evolution)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, fontFamily: mono }}>
+              <span style={{ color: colors.green }}>&#10003;</span> Configuracoes e credenciais do painel
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, fontFamily: mono }}>
+              <span style={{ color: colors.green }}>&#10003;</span> Informacoes de todas as stacks
+            </div>
+          </div>
+        </Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <Btn onClick={handleCreate} loading={creating} disabled={creating || restoring}>
+            {creating ? 'Criando...' : 'Criar snapshot agora'}
+          </Btn>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: colors.textDim, fontFamily: mono }}>
+            <span>&#9200;</span> Snapshot automatico todo dia as 02:00 (Brasilia). Mantem os 7 mais recentes.
+          </div>
+        </div>
+      </Card>
+
+      {/* Messages */}
+      {msg && (
+        <div style={{
+          padding: '12px 18px', borderRadius: 10, marginBottom: 20,
+          background: msg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+          border: `1px solid ${msg.type === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+          color: msg.type === 'success' ? colors.green : colors.red, fontSize: 13, fontFamily: mono,
+        }}>
+          {msg.text}
+        </div>
+      )}
+
+      {wsStatus && wsStatus.step && (
+        <div style={{
+          padding: '10px 18px', borderRadius: 10, marginBottom: 20,
+          background: 'rgba(255,109,90,0.05)', border: '1px solid rgba(255,109,90,0.15)',
+          fontSize: 12, fontFamily: mono, color: colors.brand, display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <Spinner size={12} color={colors.brand} />
+          {wsStatus.step}
+        </div>
+      )}
+
+      {/* Snapshot History */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Historico de Snapshots ({snapshots.length}/7)</h2>
+
+      {snapshots.length === 0 ? (
+        <Card style={{ padding: 40, textAlign: 'center' }}>
+          <div style={{ fontSize: 36, opacity: 0.3, marginBottom: 12 }}>&#128248;</div>
+          <p style={{ fontSize: 13, color: colors.textDim }}>Nenhum snapshot encontrado. Crie o primeiro acima.</p>
+        </Card>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {snapshots.map((snap) => (
+            <Card key={snap.id} style={{ padding: 22 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 22 }}>&#128248;</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{formatDate(snap.timestamp)}</div>
+                    <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono }}>Tamanho: {snap.sizeFormatted}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Included info */}
+              <div style={{ marginBottom: 14, padding: '12px 16px', background: 'rgba(255,255,255,0.01)', borderRadius: 10, border: `1px solid ${colors.border}` }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', marginBottom: 8 }}>INCLUIDO:</div>
+                {snap.databases && snap.databases.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: colors.textMuted, marginBottom: 4 }}>
+                    <span style={{ color: colors.green }}>&#10003;</span> PostgreSQL ({snap.databases.join(', ')})
+                  </div>
+                )}
+                {snap.volumes && snap.volumes.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: colors.textMuted, marginBottom: 4 }}>
+                    <span style={{ color: colors.green }}>&#10003;</span> Volumes: {snap.volumes.join(', ')}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: colors.textMuted }}>
+                  <span style={{ color: colors.green }}>&#10003;</span> Configs do painel
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <Btn variant="primary" onClick={() => setConfirmRestore(snap)}
+                  disabled={creating || restoring} style={{ fontSize: 12 }}>
+                  &#9194; Restaurar
+                </Btn>
+                <Btn variant="danger" onClick={() => handleDelete(snap.id)}
+                  disabled={creating || restoring} style={{ fontSize: 12 }}>
+                  Excluir
+                </Btn>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Restore Confirmation Modal */}
+      {confirmRestore && (
+        <ModalOverlay onClose={() => setConfirmRestore(null)}>
+          <Card className="modal-content" style={{ width: 460, padding: 28, background: '#0d0e12' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+              <span style={{ fontSize: 28 }}>&#9888;&#65039;</span>
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>Restaurar Snapshot</h3>
+            </div>
+
+            <p style={{ fontSize: 13, color: colors.textMuted, lineHeight: 1.7, marginBottom: 18 }}>
+              Isso vai restaurar seu servidor para o estado de <strong style={{ color: '#fff' }}>{formatDate(confirmRestore.timestamp)}</strong>.
+            </p>
+
+            <Card style={{ padding: 16, marginBottom: 20, background: 'rgba(255,255,255,0.01)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>O que vai acontecer:</div>
+              {[
+                'Todas as ferramentas serao paradas',
+                'Banco de dados sera substituido',
+                'Volumes serao restaurados',
+                'Ferramentas serao reiniciadas',
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, marginBottom: 4 }}>
+                  <span style={{ color: colors.yellow }}>&#8226;</span> {item}
+                </div>
+              ))}
+            </Card>
+
+            <Card style={{ padding: 14, marginBottom: 22, background: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.12)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.red }}>
+                <span>&#9888;&#65039;</span> Qualquer alteracao feita DEPOIS deste snapshot sera PERDIDA.
+              </div>
+            </Card>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <Btn variant="ghost" onClick={() => setConfirmRestore(null)}>Cancelar</Btn>
+              <Btn variant="danger" onClick={() => handleRestore(confirmRestore.id)}
+                loading={restoring === confirmRestore.id}>
+                Confirmar restauracao
+              </Btn>
+            </div>
+          </Card>
+        </ModalOverlay>
+      )}
     </div>
   );
 }
@@ -2197,6 +2464,7 @@ export default function App() {
     { id: 'monitor', label: 'Monitorar', icon: '📊' },
     { id: 'credentials', label: 'Credenciais', icon: '🔑' },
     { id: 'backup', label: 'Backup', icon: '💾' },
+    { id: 'snapshots', label: 'Snapshots', icon: '📸' },
     { id: 'environments', label: 'Ambientes', icon: '🧪' },
     { id: 'cleanup', label: 'Limpeza', icon: '🧹' },
     { id: 'settings', label: 'Configuracoes', icon: '⚙️' },
@@ -2349,7 +2617,7 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36, padding: '0 8px' }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.8.1</div>
+            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.9</div>
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)} style={{
             background: 'none', border: 'none', color: colors.textMuted, fontSize: 20, cursor: 'pointer',
@@ -2414,6 +2682,7 @@ export default function App() {
         {view === 'monitor' && <MonitorPage />}
         {view === 'credentials' && <CredentialsPage />}
         {view === 'backup' && <BackupPage />}
+        {view === 'snapshots' && <SnapshotPage />}
         {view === 'environments' && <EnvironmentsPage />}
         {view === 'cleanup' && <CleanupPage />}
         {view === 'settings' && <SettingsPage />}
