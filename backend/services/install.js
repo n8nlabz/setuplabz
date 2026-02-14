@@ -286,6 +286,7 @@ class InstallService {
 
   static getN8nSimpleCompose(c) {
     var net = this.getNetworkName();
+    var rp = c.router_prefix || "";
     return 'version: "3.8"\n' +
       "services:\n" +
       "  n8n_editor:\n" +
@@ -348,12 +349,12 @@ class InstallService {
       "          memory: 1024M\n" +
       "      labels:\n" +
       '        - "traefik.enable=true"\n' +
-      '        - "traefik.http.routers.n8n_editor.rule=' + this.hostRule(c.domain_n8n) + '"\n' +
-      '        - "traefik.http.routers.n8n_editor.entrypoints=websecure"\n' +
-      '        - "traefik.http.routers.n8n_editor.tls.certresolver=letsencryptresolver"\n' +
-      '        - "traefik.http.routers.n8n_editor.service=n8n_editor"\n' +
-      '        - "traefik.http.services.n8n_editor.loadbalancer.server.port=5678"\n' +
-      '        - "traefik.http.services.n8n_editor.loadbalancer.passHostHeader=1"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.rule=' + this.hostRule(c.domain_n8n) + '"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.entrypoints=websecure"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.tls.certresolver=letsencryptresolver"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.service=' + rp + 'n8n_editor"\n' +
+      '        - "traefik.http.services.' + rp + 'n8n_editor.loadbalancer.server.port=5678"\n' +
+      '        - "traefik.http.services.' + rp + 'n8n_editor.loadbalancer.passHostHeader=1"\n' +
       "\n" +
       "networks:\n" +
       "  network_public:\n" +
@@ -363,6 +364,7 @@ class InstallService {
 
   static getN8nQueueCompose(c) {
     var net = this.getNetworkName();
+    var rp = c.router_prefix || "";
     var webhookDomain = c.domain_webhook || c.domain_n8n;
 
     var sharedEnv =
@@ -462,13 +464,13 @@ class InstallService {
       "          memory: 1024M\n" +
       "      labels:\n" +
       '        - "traefik.enable=true"\n' +
-      '        - "traefik.http.routers.n8n_editor.rule=' + this.hostRule(c.domain_n8n) + '"\n' +
-      '        - "traefik.http.routers.n8n_editor.entrypoints=websecure"\n' +
-      '        - "traefik.http.routers.n8n_editor.priority=10"\n' +
-      '        - "traefik.http.routers.n8n_editor.tls.certresolver=letsencryptresolver"\n' +
-      '        - "traefik.http.routers.n8n_editor.service=n8n_editor"\n' +
-      '        - "traefik.http.services.n8n_editor.loadbalancer.server.port=5678"\n' +
-      '        - "traefik.http.services.n8n_editor.loadbalancer.passHostHeader=1"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.rule=' + this.hostRule(c.domain_n8n) + '"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.entrypoints=websecure"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.priority=10"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.tls.certresolver=letsencryptresolver"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_editor.service=' + rp + 'n8n_editor"\n' +
+      '        - "traefik.http.services.' + rp + 'n8n_editor.loadbalancer.server.port=5678"\n' +
+      '        - "traefik.http.services.' + rp + 'n8n_editor.loadbalancer.passHostHeader=1"\n' +
       "\n" +
       "  ## ═══════════════════════════════════\n" +
       "  ## Webhook — Processa webhooks recebidos\n" +
@@ -500,13 +502,13 @@ class InstallService {
       "          memory: 1024M\n" +
       "      labels:\n" +
       '        - "traefik.enable=true"\n' +
-      '        - "traefik.http.routers.n8n_webhook.rule=' + this.hostRule(webhookDomain) + '"\n' +
-      '        - "traefik.http.routers.n8n_webhook.entrypoints=websecure"\n' +
-      '        - "traefik.http.routers.n8n_webhook.priority=5"\n' +
-      '        - "traefik.http.routers.n8n_webhook.tls.certresolver=letsencryptresolver"\n' +
-      '        - "traefik.http.routers.n8n_webhook.service=n8n_webhook"\n' +
-      '        - "traefik.http.services.n8n_webhook.loadbalancer.server.port=5678"\n' +
-      '        - "traefik.http.services.n8n_webhook.loadbalancer.passHostHeader=1"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_webhook.rule=' + this.hostRule(webhookDomain) + '"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_webhook.entrypoints=websecure"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_webhook.priority=5"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_webhook.tls.certresolver=letsencryptresolver"\n' +
+      '        - "traefik.http.routers.' + rp + 'n8n_webhook.service=' + rp + 'n8n_webhook"\n' +
+      '        - "traefik.http.services.' + rp + 'n8n_webhook.loadbalancer.server.port=5678"\n' +
+      '        - "traefik.http.services.' + rp + 'n8n_webhook.loadbalancer.passHostHeader=1"\n' +
       "\n" +
       "  ## ═══════════════════════════════════\n" +
       "  ## Worker — Executa os workflows em background\n" +
@@ -567,6 +569,7 @@ class InstallService {
 
   static getEvolutionCompose(c) {
     var net = this.getNetworkName();
+    var rp = c.router_prefix || "";
     return 'version: "3.8"\n' +
       "services:\n" +
       "\n" +
@@ -646,12 +649,12 @@ class InstallService {
       "          - node.role == manager\n" +
       "      labels:\n" +
       '        - "traefik.enable=true"\n' +
-      '        - "traefik.http.routers.evolution.rule=' + this.hostRule(c.domain_evolution) + '"\n' +
-      '        - "traefik.http.routers.evolution.entrypoints=websecure"\n' +
-      '        - "traefik.http.routers.evolution.tls.certresolver=letsencryptresolver"\n' +
-      '        - "traefik.http.routers.evolution.service=evolution"\n' +
-      '        - "traefik.http.services.evolution.loadbalancer.server.port=8080"\n' +
-      '        - "traefik.http.services.evolution.loadbalancer.passHostHeader=true"\n' +
+      '        - "traefik.http.routers.' + rp + 'evolution.rule=' + this.hostRule(c.domain_evolution) + '"\n' +
+      '        - "traefik.http.routers.' + rp + 'evolution.entrypoints=websecure"\n' +
+      '        - "traefik.http.routers.' + rp + 'evolution.tls.certresolver=letsencryptresolver"\n' +
+      '        - "traefik.http.routers.' + rp + 'evolution.service=' + rp + 'evolution"\n' +
+      '        - "traefik.http.services.' + rp + 'evolution.loadbalancer.server.port=8080"\n' +
+      '        - "traefik.http.services.' + rp + 'evolution.loadbalancer.passHostHeader=true"\n' +
       "\n" +
       "  ## ═══════════════════════════════════\n" +
       "  ## Redis — Cache da Evolution\n" +

@@ -1,3 +1,4 @@
+const { execSync } = require("child_process");
 const DockerService = require("./docker");
 const InstallService = require("./install");
 const PortainerAPI = require("./portainer-api");
@@ -46,9 +47,34 @@ class EnvironmentService {
     if (onLog) onLog("Criando PostgreSQL dedicado para o ambiente...", "info");
     await InstallService.deployStack(pgStackName, pgCompose);
     await InstallService.waitForService(pgStackName + "_", 120000);
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 10000));
     env.stacks.push(pgStackName);
     env.credentials.db_password = pgPass;
+
+    // Force password + create databases in environment's PostgreSQL
+    if (onLog) onLog("Configurando banco de dados...", "info");
+    try {
+      const pgContainer = execSync(
+        `docker ps -q -f name=${name}_postgres_postgres`,
+        { shell: "/bin/bash" }
+      ).toString().trim();
+      if (pgContainer) {
+        execSync(
+          `docker exec ${pgContainer} psql -U postgres -c "ALTER USER postgres WITH PASSWORD '${pgPass}';"`,
+          { timeout: 10000, shell: "/bin/bash" }
+        );
+        execSync(
+          `docker exec ${pgContainer} psql -U postgres -c "CREATE DATABASE n8n_db;" 2>/dev/null || true`,
+          { timeout: 10000, shell: "/bin/bash" }
+        );
+        execSync(
+          `docker exec ${pgContainer} psql -U postgres -c "CREATE DATABASE evolution;" 2>/dev/null || true`,
+          { timeout: 10000, shell: "/bin/bash" }
+        );
+      }
+    } catch (err) {
+      if (onLog) onLog("Aviso: " + err.message, "info");
+    }
 
     // Install requested tools
     for (const toolId of (tools || ["n8n"])) {
@@ -69,6 +95,7 @@ class EnvironmentService {
           encryption_key: encKey,
           pg_host: name + "_postgres_postgres",
           redis_host: name + "_n8n_n8n_redis",
+          router_prefix: name + "_",
         };
         const compose = InstallService.getN8nSimpleCompose(composeConfig);
         await InstallService.deployStack(stackName, compose);
@@ -89,6 +116,7 @@ class EnvironmentService {
           evolution_key: apiKey,
           pg_host: name + "_postgres_postgres",
           evo_redis_host: name + "_evolution_evolution_redis",
+          router_prefix: name + "_",
         };
         const compose = InstallService.getEvolutionCompose(composeConfig);
         await InstallService.deployStack(stackName, compose);
