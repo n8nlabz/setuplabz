@@ -16,6 +16,8 @@ const toolsRoutes = require("./routes/tools");
 const environmentsRoutes = require("./routes/environments");
 const BackupService = require("./services/backup");
 const MetricsService = require("./services/metrics");
+const pushRoutes = require("./routes/push");
+const ServiceMonitor = require("./services/monitor");
 
 const app = express();
 expressWs(app);
@@ -58,6 +60,7 @@ app.use("/api/system", authMiddleware, systemRoutes);
 app.use("/api/credentials", authMiddleware, credentialsRoutes);
 app.use("/api/tools", authMiddleware, toolsRoutes);
 app.use("/api/environments", authMiddleware, environmentsRoutes);
+app.use("/api/push", authMiddleware, pushRoutes);
 
 // WebSocket for real-time logs
 app.ws("/api/ws/logs", (ws, req) => {
@@ -77,7 +80,7 @@ app.get("*", (req, res) => {
   } else {
     res.json({
       name: "N8N LABZ Setup Panel API",
-      version: "2.1.0",
+      version: "2.7.0",
       status: "running",
       docs: "Frontend not built. Run: npm run build:frontend",
     });
@@ -93,7 +96,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log("");
   console.log("  ╔══════════════════════════════════════════╗");
-  console.log("  ║     N8N LABZ Setup Panel v2.1            ║");
+  console.log("  ║     N8N LABZ Setup Panel v2.7            ║");
   console.log(`  ║     Porta: ${PORT}                          ║`);
   console.log("  ╚══════════════════════════════════════════╝");
   console.log("");
@@ -103,6 +106,10 @@ app.listen(PORT, "0.0.0.0", () => {
 
   // Start metrics collection
   MetricsService.startCollecting(app.locals.broadcast);
+
+  // Start service monitor
+  const monitor = new ServiceMonitor();
+  monitor.start();
 });
 
 module.exports = app;

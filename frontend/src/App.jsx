@@ -3,7 +3,9 @@ import { api, apiUpload, getToken, setToken, clearToken, connectWebSocket,
   fetchCredentials, fetchMetrics, updateToolImage,
   fetchContainerEnv, updateContainerEnv, fetchContainerLogs,
   systemCleanup, fetchCleanupInfo,
-  fetchEnvironments, createEnvironment, destroyEnvironment } from './hooks/api.js';
+  fetchEnvironments, createEnvironment, destroyEnvironment,
+  fetchVapidKey, subscribePush, unsubscribePush, sendTestPush,
+  fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array } from './hooks/api.js';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 // ─── Styles ───
@@ -666,6 +668,9 @@ function DashboardPage() {
           })}
         </div>
       )}
+
+      {/* Push Notifications */}
+      <PushNotificationCard />
 
       {versionModal && (
         <VersionModal
@@ -1952,11 +1957,227 @@ function CleanupPage() {
   );
 }
 
+// ─── Push Notification Helper ───
+function PushNotificationCard() {
+  const [pushStatus, setPushStatus] = useState('unknown'); // unknown, unsupported, denied, subscribed, unsubscribed
+  const [loading, setLoading] = useState(false);
+  const [testSent, setTestSent] = useState(false);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushStatus('unsupported');
+      return;
+    }
+    checkSubscription();
+  }, []);
+
+  const checkSubscription = async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      setPushStatus(sub ? 'subscribed' : 'unsubscribed');
+    } catch {
+      setPushStatus('unsubscribed');
+    }
+  };
+
+  const subscribe = async () => {
+    setLoading(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setPushStatus('denied');
+        setLoading(false);
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const { publicKey } = await fetchVapidKey();
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      await subscribePush(sub.toJSON());
+      setPushStatus('subscribed');
+    } catch (err) {
+      console.error('Push subscribe error:', err);
+    }
+    setLoading(false);
+  };
+
+  const unsubscribe = async () => {
+    setLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await unsubscribePush(sub.endpoint);
+        await sub.unsubscribe();
+      }
+      setPushStatus('unsubscribed');
+    } catch {}
+    setLoading(false);
+  };
+
+  const sendTest = async () => {
+    try {
+      await sendTestPush();
+      setTestSent(true);
+      setTimeout(() => setTestSent(false), 3000);
+    } catch {}
+  };
+
+  if (pushStatus === 'unsupported') return null;
+
+  return (
+    <Card style={{ padding: 22, marginTop: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <span style={{ fontSize: 22 }}>&#128276;</span>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Notificacoes Push</div>
+          <div style={{ fontSize: 12, color: colors.textMuted }}>Receba alertas no celular quando algo precisar da sua atencao.</div>
+        </div>
+      </div>
+      {pushStatus === 'denied' && (
+        <div style={{ fontSize: 12, color: colors.red, marginBottom: 12, fontFamily: mono }}>
+          Notificacoes bloqueadas pelo navegador. Habilite nas configuracoes do browser.
+        </div>
+      )}
+      {pushStatus === 'subscribed' && (
+        <div style={{ fontSize: 12, color: colors.green, marginBottom: 12, fontFamily: mono, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>&#10003;</span> Notificacoes ativadas neste dispositivo
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 10 }}>
+        {pushStatus === 'subscribed' ? (
+          <>
+            <Btn variant="ghost" onClick={unsubscribe} loading={loading} style={{ fontSize: 11 }}>Desativar</Btn>
+            <Btn variant="ghost" onClick={sendTest} style={{ fontSize: 11 }}>
+              {testSent ? 'Enviado!' : 'Enviar teste'}
+            </Btn>
+          </>
+        ) : (
+          <Btn onClick={subscribe} loading={loading} style={{ fontSize: 12 }}>Ativar notificacoes</Btn>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ─── Settings Page ───
+function SettingsPage() {
+  const [prefs, setPrefs] = useState({ service_down: true, high_resource: true, backup_reminder: true, new_version: true });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    fetchPushPrefs()
+      .then((data) => { setPrefs(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const togglePref = (key) => {
+    setPrefs((p) => ({ ...p, [key]: !p[key] }));
+    setSaved(false);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await savePushPrefs(prefs);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
+    setSaving(false);
+  };
+
+  if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
+
+  const alertOptions = [
+    { key: 'service_down', label: 'Servicos offline', desc: 'Alerta quando n8n, Evolution ou Portainer cair.' },
+    { key: 'high_resource', label: 'Uso alto de recursos', desc: 'Alerta quando CPU > 80%, RAM > 80% ou Disco > 90%.' },
+    { key: 'backup_reminder', label: 'Lembrete de backup', desc: 'Avisa se nao fizer backup ha mais de 7 dias.' },
+    { key: 'new_version', label: 'Novas versoes', desc: 'Avisa quando uma ferramenta tiver atualizacao.' },
+  ];
+
+  return (
+    <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
+      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Configuracoes</h1>
+      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>
+        Gerencie notificacoes e preferencias do painel.
+      </p>
+
+      {/* Push Notifications */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Notificacoes Push</h2>
+      <PushNotificationCard />
+
+      {/* Alert Preferences */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginTop: 28, marginBottom: 14 }}>Tipos de alerta</h2>
+      <Card style={{ overflow: 'hidden' }}>
+        {alertOptions.map((opt, i) => (
+          <div key={opt.key} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 22px', borderBottom: i < alertOptions.length - 1 ? `1px solid ${colors.border}` : 'none',
+          }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{opt.label}</div>
+              <div style={{ fontSize: 11, color: colors.textDim }}>{opt.desc}</div>
+            </div>
+            <label style={{ position: 'relative', display: 'inline-block', width: 42, height: 24, cursor: 'pointer' }}>
+              <input type="checkbox" checked={prefs[opt.key]} onChange={() => togglePref(opt.key)}
+                style={{ opacity: 0, width: 0, height: 0 }} />
+              <span style={{
+                position: 'absolute', inset: 0, borderRadius: 12, transition: 'all 0.3s',
+                background: prefs[opt.key] ? colors.green : 'rgba(255,255,255,0.1)',
+              }}>
+                <span style={{
+                  position: 'absolute', top: 3, left: prefs[opt.key] ? 21 : 3, width: 18, height: 18,
+                  borderRadius: '50%', background: '#fff', transition: 'all 0.3s',
+                }} />
+              </span>
+            </label>
+          </div>
+        ))}
+      </Card>
+
+      <div style={{ marginTop: 18, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <Btn onClick={save} loading={saving} style={{ fontSize: 12 }}>Salvar preferencias</Btn>
+        {saved && <span style={{ fontSize: 12, color: colors.green, fontFamily: mono }}>Salvo!</span>}
+      </div>
+
+      {/* PWA Info */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginTop: 28, marginBottom: 14 }}>Instalar como App</h2>
+      <Card style={{ padding: 22 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <span style={{ fontSize: 22 }}>&#128241;</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Instale o N8N LABZ no seu celular</div>
+            <div style={{ fontSize: 12, color: colors.textMuted }}>Acesse mais rapido direto da tela inicial.</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: colors.textDim, lineHeight: 1.7 }}>
+          <strong>Chrome/Edge:</strong> Toque no menu (3 pontinhos) e em "Adicionar a tela inicial".<br/>
+          <strong>Safari (iOS):</strong> Toque no botao de compartilhar e em "Adicionar a Tela de Inicio".
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main App ───
 export default function App() {
   const [authed, setAuthed] = useState(!!getToken());
   const [view, setView] = useState('dashboard');
   const [sysInfo, setSysInfo] = useState(null);
+  const [showPwaBanner, setShowPwaBanner] = useState(false);
+
+  useEffect(() => {
+    // Show PWA install banner on mobile if not installed and not dismissed
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const dismissed = localStorage.getItem('n8nlabz_pwa_dismissed');
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+    if (isMobile && !isStandalone && !dismissed) setShowPwaBanner(true);
+  }, []);
 
   useEffect(() => {
     if (authed) {
@@ -1976,6 +2197,7 @@ export default function App() {
     { id: 'backup', label: 'Backup', icon: '💾' },
     { id: 'environments', label: 'Ambientes', icon: '🧪' },
     { id: 'cleanup', label: 'Limpeza', icon: '🧹' },
+    { id: 'settings', label: 'Configuracoes', icon: '⚙️' },
   ];
 
   return (
@@ -1986,6 +2208,24 @@ export default function App() {
         @keyframes spin { to { transform:rotate(360deg); } }
         @keyframes progressBar { 0% { width:5%; } 50% { width:70%; } 100% { width:95%; } }
       `}</style>
+
+      {/* PWA Install Banner (mobile only) */}
+      {showPwaBanner && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 2000,
+          background: 'linear-gradient(135deg, rgba(255,109,90,0.95), rgba(255,68,68,0.95))',
+          padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          backdropFilter: 'blur(10px)',
+        }}>
+          <div style={{ fontSize: 13, color: '#fff', lineHeight: 1.4 }}>
+            <strong>&#128241; Instale o N8N LABZ!</strong> Toque em "Adicionar a tela inicial" no navegador.
+          </div>
+          <button onClick={() => { setShowPwaBanner(false); localStorage.setItem('n8nlabz_pwa_dismissed', '1'); }}
+            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, cursor: 'pointer', padding: '0 4px', opacity: 0.8 }}>
+            &#10005;
+          </button>
+        </div>
+      )}
 
       {/* Sidebar */}
       <aside style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
@@ -2053,6 +2293,7 @@ export default function App() {
         {view === 'backup' && <BackupPage />}
         {view === 'environments' && <EnvironmentsPage />}
         {view === 'cleanup' && <CleanupPage />}
+        {view === 'settings' && <SettingsPage />}
       </main>
     </div>
   );

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#0a0a0f"/>
+  <rect x="16" y="16" width="160" height="160" rx="24" fill="#0a0a0f" stroke="#ff6d5a" stroke-width="3" stroke-opacity="0.3"/>
+  <text x="96" y="88" text-anchor="middle" fill="#ff6d5a" font-family="monospace" font-weight="800" font-size="42">N8N</text>
+  <text x="96" y="128" text-anchor="middle" fill="#ff6d5a" font-family="monospace" font-weight="600" font-size="28" opacity="0.7">LABZ</text>
+</svg>

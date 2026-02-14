@@ -113,10 +113,47 @@ async function destroyEnvironment(name) {
   return api(`/environments/${name}`, { method: 'DELETE' });
 }
 
+// ─── Push Notifications ───
+
+async function fetchVapidKey() {
+  return api('/push/vapid-key');
+}
+
+async function subscribePush(subscription) {
+  return api('/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) });
+}
+
+async function unsubscribePush(endpoint) {
+  return api('/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) });
+}
+
+async function sendTestPush() {
+  return api('/push/test', { method: 'POST' });
+}
+
+async function fetchPushPrefs() {
+  return api('/push/prefs');
+}
+
+async function savePushPrefs(prefs) {
+  return api('/push/prefs', { method: 'POST', body: JSON.stringify(prefs) });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 export {
   api, apiUpload, getToken, setToken, clearToken, connectWebSocket,
   fetchCredentials, fetchMetrics, updateToolImage,
   fetchContainerEnv, updateContainerEnv, fetchContainerLogs,
   systemCleanup, fetchCleanupInfo,
   fetchEnvironments, createEnvironment, destroyEnvironment,
+  fetchVapidKey, subscribePush, unsubscribePush, sendTestPush,
+  fetchPushPrefs, savePushPrefs, urlBase64ToUint8Array,
 };
