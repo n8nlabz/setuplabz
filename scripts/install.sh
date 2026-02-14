@@ -168,7 +168,7 @@ log_step "🔒 Traefik (Proxy Reverso + SSL)"
 log_info "Instalando o Traefik... (ele cuida dos certificados SSL automaticamente)"
 
 TRAEFIK_COMPOSE="/tmp/traefik-compose.yml"
-cat > "$TRAEFIK_COMPOSE" <<'TRAEFIKEOF'
+cat > "$TRAEFIK_COMPOSE" <<TRAEFIKEOF
 version: "3.8"
 services:
   traefik:
@@ -178,7 +178,7 @@ services:
       - "--providers.swarm=true"
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=__NETWORK_NAME__"
+      - "--providers.docker.network=${NETWORK_NAME}"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
@@ -188,7 +188,7 @@ services:
       - "--certificatesresolvers.letsencryptresolver.acme.httpchallenge=true"
       - "--certificatesresolvers.letsencryptresolver.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.letsencryptresolver.acme.storage=/etc/traefik/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencryptresolver.acme.email=__ADMIN_EMAIL__"
+      - "--certificatesresolvers.letsencryptresolver.acme.email=${ADMIN_EMAIL}"
       - "--log.level=ERROR"
       - "--log.format=common"
       - "--log.filePath=/var/log/traefik/traefik.log"
@@ -214,7 +214,7 @@ services:
         - "traefik.enable=true"
         - "traefik.http.middlewares.redirect-https.redirectscheme.scheme=https"
         - "traefik.http.middlewares.redirect-https.redirectscheme.permanent=true"
-        - "traefik.http.routers.http-catchall.rule=Host(__BT__{host:.+}__BT__)"
+        - "traefik.http.routers.http-catchall.rule=Host(\`{host:.+}\`)"
         - "traefik.http.routers.http-catchall.entrypoints=web"
         - "traefik.http.routers.http-catchall.middlewares=redirect-https@docker"
         - "traefik.http.routers.http-catchall.priority=1"
@@ -227,12 +227,8 @@ volumes:
 networks:
   network_public:
     external: true
-    name: __NETWORK_NAME__
+    name: ${NETWORK_NAME}
 TRAEFIKEOF
-
-sed -i "s|__ADMIN_EMAIL__|${ADMIN_EMAIL}|g" "$TRAEFIK_COMPOSE"
-sed -i "s|__NETWORK_NAME__|${NETWORK_NAME}|g" "$TRAEFIK_COMPOSE"
-sed -i "s|__BT__|$( printf '\x60' )|g" "$TRAEFIK_COMPOSE"
 
 docker stack deploy -c "$TRAEFIK_COMPOSE" traefik >/dev/null 2>&1
 rm -f "$TRAEFIK_COMPOSE"
@@ -323,16 +319,16 @@ log_step "🚀 Deploy do painel"
 
 PANEL_COMPOSE="/tmp/panel-compose.yml"
 
-cat > "$PANEL_COMPOSE" <<'COMPOSEEOF'
+cat > "$PANEL_COMPOSE" <<COMPOSEEOF
 version: "3.8"
 services:
   n8nlabz_panel:
     image: n8nlabz-panel:latest
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - __INSTALL_DIR__/config.json:/opt/n8nlabz/config.json
-      - __INSTALL_DIR__/credentials.json:/opt/n8nlabz/credentials.json
-      - __INSTALL_DIR__/backups:/opt/n8nlabz/backups
+      - ${INSTALL_DIR}/config.json:/opt/n8nlabz/config.json
+      - ${INSTALL_DIR}/credentials.json:/opt/n8nlabz/credentials.json
+      - ${INSTALL_DIR}/backups:/opt/n8nlabz/backups
     environment:
       - NODE_ENV=production
       - PORT=3080
@@ -344,22 +340,17 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.n8nlabz.rule=Host(__BT____DASHBOARD_DOMAIN____BT__)"
+        - "traefik.http.routers.n8nlabz.rule=Host(\`${DASHBOARD_DOMAIN}\`)"
         - "traefik.http.routers.n8nlabz.entrypoints=websecure"
         - "traefik.http.routers.n8nlabz.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.n8nlabz.loadbalancer.server.port=3080"
-        - "traefik.docker.network=__NETWORK_NAME__"
+        - "traefik.docker.network=${NETWORK_NAME}"
 
 networks:
   network_public:
     external: true
-    name: __NETWORK_NAME__
+    name: ${NETWORK_NAME}
 COMPOSEEOF
-
-sed -i "s|__INSTALL_DIR__|${INSTALL_DIR}|g" "$PANEL_COMPOSE"
-sed -i "s|__DASHBOARD_DOMAIN__|${DASHBOARD_DOMAIN}|g" "$PANEL_COMPOSE"
-sed -i "s|__NETWORK_NAME__|${NETWORK_NAME}|g" "$PANEL_COMPOSE"
-sed -i "s|__BT__|$( printf '\x60' )|g" "$PANEL_COMPOSE"
 
 docker stack deploy -c "$PANEL_COMPOSE" panel >/dev/null 2>&1
 rm -f "$PANEL_COMPOSE"

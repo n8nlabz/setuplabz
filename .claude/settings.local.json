@@ -11,7 +11,8 @@
       "Bash(node -c:*)",
       "Bash(node:*)",
       "Bash(git status:*)",
-      "Bash(bash -n \"C:/Users/user/OneDrive/Área de Trabalho/Setup Labz/n8nlabz-setup/scripts/install.sh\")"
+      "Bash(bash -n \"C:/Users/user/OneDrive/Área de Trabalho/Setup Labz/n8nlabz-setup/scripts/install.sh\")",
+      "Bash(xxd:*)"
     ]
   }
 }
