@@ -243,9 +243,9 @@ function Btn({ children, onClick, variant = 'primary', disabled, loading, style:
   );
 }
 
-function Card({ children, style: s, onClick }) {
+function Card({ children, style: s, onClick, className }) {
   return (
-    <div onClick={onClick} style={{ borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface, ...s }}>
+    <div onClick={onClick} className={className} style={{ borderRadius: 14, border: `1px solid ${colors.border}`, background: colors.surface, ...s }}>
       {children}
     </div>
   );
@@ -362,7 +362,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.8
+            SETUP PANEL v2.8.1
           </div>
         </div>
 
@@ -493,7 +493,7 @@ function DashboardPage() {
       <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>{getStatusMessage()}</p>
 
       {/* Health Cards */}
-      <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-3" style={{ gap: 14, marginBottom: 28 }}>
         {/* CPU */}
         <Card style={{ padding: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -543,7 +543,7 @@ function DashboardPage() {
       </div>
 
       {/* Charts with side explanations */}
-      <div className="grid-73" style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
+      <div className="grid-73" style={{ gap: 14, marginBottom: 28 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>CPU & RAM (ultima hora)</div>
           <ResponsiveContainer width="100%" height={200}>
@@ -571,7 +571,7 @@ function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid-73" style={{ display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 14, marginBottom: 28 }}>
+      <div className="grid-73" style={{ gap: 14, marginBottom: 28 }}>
         <Card style={{ padding: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: colors.textMuted, marginBottom: 16 }}>Uso de disco (30 dias)</div>
           {metricsData.disk.length === 0 ? (
@@ -616,7 +616,7 @@ function DashboardPage() {
           </p>
         </Card>
       ) : (
-        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+        <div className="grid-auto" style={{ gap: 14 }}>
           {installed.map((toolId) => {
             const tool = TOOLS.find((t) => t.id === toolId);
             if (!tool) return null;
@@ -782,7 +782,7 @@ function InstallPage() {
       </p>
 
       {/* Tool Cards */}
-      <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-3" style={{ gap: 14, marginBottom: 28 }}>
         {TOOLS.map((tool) => {
           const isInstalled = installed.includes(tool.id);
           const isInstalling = installing === tool.id;
@@ -822,7 +822,7 @@ function InstallPage() {
       {/* Config Modal */}
       {modal && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <Card style={{ width: 480, padding: 28, background: '#0d0e12', maxHeight: '80vh', overflowY: 'auto' }}>
+          <Card className="modal-content" style={{ width: 480, padding: 28, background: '#0d0e12', maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
               <ToolLogo toolId={modal.id} size={48} />
               <div>
@@ -846,7 +846,7 @@ function InstallPage() {
                 {modal.hasMode && (
                   <div style={{ marginBottom: 20 }}>
                     <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Modo de instalacao</label>
-                    <div className="grid-modal-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div className="grid-modal-2" style={{ gap: 10 }}>
                       {Object.entries(modal.modes).map(([key, mode]) => (
                         <div key={key} onClick={() => setN8nMode(key)} style={{
                           padding: '12px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.2s',
@@ -861,7 +861,7 @@ function InstallPage() {
                   </div>
                 )}
 
-                <div className="grid-modal-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
+                <div className="grid-modal-2" style={{ gap: 10, marginBottom: 22 }}>
                   {getFields(modal).map((f) => (
                     <div key={f.key} style={{ gridColumn: f.key === 'smtp_host' || f.key === 'smtp_email' ? 'span 1' : undefined }}>
                       <label style={{ fontSize: 9, fontWeight: 600, color: colors.textDim, fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>{f.label}</label>
@@ -1262,7 +1262,7 @@ function MonitorPage() {
       </div>
 
       {/* Stats with educational descriptions */}
-      <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-4" style={{ gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Containers', value: containers.length, color: colors.blue, edu: 'Cada ferramenta roda dentro de um "container" isolado no servidor.' },
           { label: 'Ativos', value: running, color: colors.green, edu: running === containers.length ? 'Todos os seus containers estao funcionando normalmente.' : 'Alguns containers estao parados. Verifique abaixo.' },
@@ -1455,7 +1455,7 @@ function CredentialsPage() {
           <p style={{ fontSize: 13, color: colors.textMuted }}>Nenhuma credencial encontrada. Instale uma ferramenta primeiro.</p>
         </Card>
       ) : (
-        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 18 }}>
+        <div className="grid-auto-lg" style={{ gap: 18 }}>
           {toolEntries.map(([toolId, data]) => {
             const tool = TOOLS.find((t) => t.id === toolId) || { name: toolId, color: toolColorMap[toolId] || colors.textMuted };
             const cardColor = toolColorMap[toolId] || colors.textMuted;
@@ -1625,7 +1625,7 @@ function BackupPage() {
         </div>
       )}
 
-      <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 28 }}>
+      <div className="grid-2" style={{ gap: 18, marginBottom: 28 }}>
         <Card style={{ padding: 26 }}>
           <div style={{ fontSize: 36, marginBottom: 14 }}>📦</div>
           <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Criar Backup</h3>
@@ -1758,7 +1758,7 @@ function EnvironmentsPage() {
           <p style={{ fontSize: 13, color: colors.textMuted }}>Nenhum ambiente de teste criado ainda.</p>
         </Card>
       ) : (
-        <div className="grid-auto" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: 14 }}>
+        <div className="grid-auto-xl" style={{ gap: 14 }}>
           {environments.map((env) => {
             const stacks = env.stacks || [];
             const hasN8n = stacks.some((s) => s.includes('_n8n'));
@@ -1909,7 +1909,7 @@ function CleanupPage() {
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Limpeza do Sistema</h1>
       <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>Remova recursos Docker nao utilizados para liberar espaco no disco.</p>
 
-      <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="grid-2" style={{ gap: 14, marginBottom: 28 }}>
         {cleanupItems.map((item) => (
           <Card key={item.type} style={{ padding: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
@@ -2203,60 +2203,114 @@ export default function App() {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: colors.bg }}>
+    <div style={{ minHeight: '100vh', background: colors.bg }}>
       <style>{`
         @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes spin { to { transform:rotate(360deg); } }
         @keyframes progressBar { 0% { width:5%; } 50% { width:70%; } 100% { width:95%; } }
 
+        /* ===== SIDEBAR DESKTOP ===== */
+        .n8n-sidebar {
+          position: fixed;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 200px;
+          display: flex;
+          flex-direction: column;
+          z-index: 1000;
+          overflow-y: auto;
+        }
+
+        /* ===== MAIN CONTENT DESKTOP ===== */
+        .n8n-main {
+          margin-left: 200px;
+          min-height: 100vh;
+        }
+
+        /* ===== GRIDS DESKTOP ===== */
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+        .grid-73 { display: grid; grid-template-columns: 7fr 3fr; }
+        .grid-auto { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+        .grid-auto-lg { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+        .grid-auto-xl { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); }
+        .grid-modal-2 { display: grid; grid-template-columns: 1fr 1fr; }
+
+        /* ===== MOBILE HEADER (hidden on desktop) ===== */
         .mobile-header { display: none; }
+
+        /* ===== SIDEBAR OVERLAY (hidden by default) ===== */
         .sidebar-overlay { display: none; }
 
+        /* ===== SIDEBAR CLOSE (hidden on desktop) ===== */
+        .sidebar-close { display: none !important; }
+
+        /* ===== MOBILE (<=768px) ===== */
         @media (max-width: 768px) {
+          .n8n-sidebar {
+            left: -280px;
+            width: 280px;
+            transition: left 0.3s ease;
+            z-index: 1001;
+          }
+          .n8n-sidebar.open { left: 0; }
+
+          .n8n-main {
+            margin-left: 0;
+            padding: 16px !important;
+            padding-top: 72px !important;
+            width: 100%;
+          }
+
           .mobile-header {
             display: flex !important;
             align-items: center;
-            gap: 14px;
-            padding: 14px 18px;
-            background: rgba(0,0,0,0.4);
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(7,8,10,0.98);
             border-bottom: 1px solid rgba(255,255,255,0.06);
-            position: sticky;
+            position: fixed;
             top: 0;
-            z-index: 998;
+            left: 0;
+            right: 0;
+            z-index: 999;
+            height: 56px;
           }
-          .n8n-sidebar {
-            position: fixed !important;
-            left: -280px;
-            top: 0;
-            height: 100vh;
-            width: 270px !important;
-            z-index: 1001;
-            transition: left 0.3s ease;
-            overflow-y: auto;
-          }
-          .n8n-sidebar.open { left: 0; }
+
           .sidebar-overlay.show {
-            display: block !important;
+            display: block;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.55);
+            background: rgba(0,0,0,0.6);
             z-index: 1000;
           }
-          .n8n-main {
-            padding: 20px 16px !important;
-          }
+
+          .sidebar-close { display: flex !important; }
+
+          .sidebar-server-info { display: none; }
+
           .grid-3 { grid-template-columns: 1fr !important; }
           .grid-4 { grid-template-columns: 1fr 1fr !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-73 { grid-template-columns: 1fr !important; }
+          .grid-73 > * { width: 100% !important; min-width: 0 !important; }
           .grid-auto { grid-template-columns: 1fr !important; }
+          .grid-auto-lg { grid-template-columns: 1fr !important; }
+          .grid-auto-xl { grid-template-columns: 1fr !important; }
           .grid-modal-2 { grid-template-columns: 1fr !important; }
-          .sidebar-close { display: flex !important; }
+
+          .modal-content {
+            width: 95% !important;
+            max-width: none !important;
+            margin: 10px !important;
+            max-height: 90vh !important;
+            overflow-y: auto !important;
+          }
+
           .n8n-main h1 { font-size: 22px !important; }
-        }
-        @media (min-width: 769px) {
-          .sidebar-close { display: none !important; }
         }
       `}</style>
 
@@ -2291,11 +2345,11 @@ export default function App() {
       <div className={`sidebar-overlay ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* Sidebar */}
-      <aside className={`n8n-sidebar ${sidebarOpen ? 'open' : ''}`} style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(7,8,10,0.98)', display: 'flex', flexDirection: 'column' }}>
+      <aside className={`n8n-sidebar ${sidebarOpen ? 'open' : ''}`} style={{ padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(7,8,10,0.98)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 36, padding: '0 8px' }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.8</div>
+            <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.8.1</div>
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)} style={{
             background: 'none', border: 'none', color: colors.textMuted, fontSize: 20, cursor: 'pointer',
@@ -2318,7 +2372,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div style={{ marginTop: 'auto' }}>
+        <div style={{ marginTop: 'auto' }} className="sidebar-server-info">
           <Card style={{ padding: 14 }}>
             <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.1em', marginBottom: 8 }}>SERVIDOR</div>
             {sysInfo ? (
@@ -2354,7 +2408,7 @@ export default function App() {
       </aside>
 
       {/* Main */}
-      <main className="n8n-main" style={{ flex: 1, padding: '30px 36px', overflowY: 'auto' }}>
+      <main className="n8n-main" style={{ padding: '30px 36px', overflowY: 'auto' }}>
         {view === 'dashboard' && <DashboardPage />}
         {view === 'install' && <InstallPage />}
         {view === 'monitor' && <MonitorPage />}
