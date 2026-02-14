@@ -225,7 +225,7 @@ function LoginPage({ onLogin }) {
             N8N LABZ
           </div>
           <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 6 }}>
-            SETUP PANEL v2.1
+            SETUP PANEL v2.2
           </div>
         </div>
 
@@ -257,6 +257,8 @@ function DashboardPage() {
   const [containers, setContainers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [metricsData, setMetricsData] = useState({ realtime: [], disk: [] });
+  const [creds, setCreds] = useState(null);
+  const [versionModal, setVersionModal] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -283,6 +285,10 @@ function DashboardPage() {
         })),
       });
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchCredentials().then(setCreds).catch(() => {});
   }, []);
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
@@ -369,9 +375,17 @@ function DashboardPage() {
               return false;
             });
             const allRunning = toolContainers.length > 0 && toolContainers.every((c) => c.state === 'running');
+            const mainContainer = toolContainers.find((c) => {
+              const n = c.name.toLowerCase();
+              return !n.includes('redis') && !n.includes('agent');
+            }) || toolContainers[0];
+            const version = mainContainer ? (mainContainer.image.split(':').pop() || 'latest') : '---';
+            const toolCreds = creds?.[toolId];
+            const openUrl = toolCreds?.editor_url || toolCreds?.url || toolCreds?.base_url || (toolCreds?.domain ? 'https://' + toolCreds.domain : null);
+
             return (
               <Card key={toolId} style={{ padding: 20, borderColor: tool.color + '20' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, background: tool.color + '12', border: `1px solid ${tool.color}25` }}>
                     {tool.icon}
                   </div>
@@ -380,13 +394,38 @@ function DashboardPage() {
                     <StatusBadge status={allRunning ? 'running' : 'stopped'} />
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono }}>
+                <div style={{ fontSize: 11, color: colors.textMuted, fontFamily: mono, marginBottom: 2 }}>
+                  Versao: {version}
+                </div>
+                <div style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, marginBottom: 14 }}>
                   {toolContainers.length} container{toolContainers.length !== 1 ? 's' : ''}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {openUrl && (
+                    <a href={openUrl} target="_blank" rel="noopener noreferrer" style={{
+                      padding: '6px 14px', borderRadius: 10, fontSize: 11, fontWeight: 600, fontFamily: mono,
+                      background: tool.color + '12', color: tool.color, border: `1px solid ${tool.color}25`,
+                      textDecoration: 'none', display: 'inline-flex', alignItems: 'center',
+                    }}>
+                      Abrir
+                    </a>
+                  )}
+                  <Btn variant="ghost" onClick={() => setVersionModal(toolId)} style={{ padding: '6px 14px', fontSize: 11 }}>
+                    Alterar versao
+                  </Btn>
                 </div>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {versionModal && (
+        <VersionModal
+          toolId={versionModal}
+          toolName={TOOLS.find((t) => t.id === versionModal)?.name || versionModal}
+          onClose={() => setVersionModal(null)}
+        />
       )}
     </div>
   );
@@ -844,6 +883,7 @@ function MonitorPage() {
   const [logModal, setLogModal] = useState(null);
   const [envModal, setEnvModal] = useState(null);
   const [versionModal, setVersionModal] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -861,43 +901,95 @@ function MonitorPage() {
     setActionLoading(null);
   };
 
-  const running = containers.filter((c) => c.state === 'running').length;
-  const toolColors = { panel: colors.brand, n8n: colors.brand, evolution: colors.green, traefik: colors.blue, portainer: colors.blue, postgres: colors.purple, redis: colors.red, other: colors.textMuted };
-  const managedTools = ['n8n', 'evolution', 'portainer'];
+  // ── Helpers ──
+  const parseBase = (name) => { const d = name.indexOf('.'); return d > 0 ? name.slice(0, d) : name; };
 
-  const getToolType = (name) => {
-    const n = name.toLowerCase();
-    if (n.includes('n8n') && !n.includes('n8nlabz')) return 'n8n';
-    if (n.includes('evolution')) return 'evolution';
-    if (n.includes('portainer')) return 'portainer';
-    if (n.includes('postgres')) return 'postgres';
-    if (n.includes('redis')) return 'redis';
-    if (n.includes('traefik')) return 'traefik';
-    if (n.includes('panel') || n.includes('n8nlabz')) return 'panel';
+  const getToolGroup = (name) => {
+    const b = parseBase(name).toLowerCase();
+    if (b.includes('n8nlabz') || b === 'panel') return 'panel';
+    if (b.includes('n8n')) return 'n8n';
+    if (b.includes('evolution')) return 'evolution';
+    if (b.includes('portainer')) return 'portainer';
+    if (b.includes('postgres')) return 'postgres';
+    if (b.includes('traefik')) return 'traefik';
     return 'other';
   };
 
-  // Group by stack
-  const stacks = {};
+  const getFriendly = (name, group) => {
+    const b = parseBase(name).toLowerCase();
+    if (group === 'n8n') { if (b.includes('editor')) return 'Editor'; if (b.includes('webhook')) return 'Webhook'; if (b.includes('worker')) return 'Worker'; if (b.includes('redis')) return 'Redis'; return 'n8n'; }
+    if (group === 'evolution') { if (b.includes('redis')) return 'Redis'; return 'API'; }
+    if (group === 'portainer') { if (b.includes('agent')) return 'Agent'; return 'Portainer'; }
+    if (group === 'postgres') return 'PostgreSQL';
+    if (group === 'traefik') return 'Traefik';
+    if (group === 'panel') return 'Painel';
+    return parseBase(name);
+  };
+
+  const subTooltips = {
+    'n8n_Editor': 'O editor e onde voce cria e edita seus workflows',
+    'n8n_Webhook': 'Responsavel por receber webhooks externos',
+    'n8n_Worker': 'Processa suas automacoes em segundo plano',
+    'n8n_Redis': 'Banco de dados em memoria usado para filas de execucao',
+    'n8n_n8n': 'Servico principal do n8n (modo simples)',
+    'evolution_API': 'Servico principal da Evolution API para integracao com WhatsApp',
+    'evolution_Redis': 'Cache de sessoes e dados do WhatsApp',
+    'portainer_Portainer': 'Interface visual para gerenciar containers Docker',
+    'portainer_Agent': 'Agente de comunicacao entre Portainer e Docker',
+    'postgres_PostgreSQL': 'Banco de dados relacional que armazena todos os seus dados',
+    'traefik_Traefik': 'Proxy reverso responsavel pelo SSL e roteamento de dominios',
+    'panel_Painel': 'Este painel de controle (N8N LABZ Setup Panel)',
+  };
+
+  const toolDefs = {
+    n8n: { name: 'n8n', icon: '\u26A1', color: colors.brand, desc: 'Plataforma de automacao', managed: true },
+    evolution: { name: 'Evolution API', icon: '\uD83D\uDCF1', color: colors.green, desc: 'API para WhatsApp', managed: true },
+    portainer: { name: 'Portainer', icon: '\uD83D\uDC33', color: colors.blue, desc: 'Gerenciamento Docker', managed: true },
+    postgres: { name: 'PostgreSQL', icon: '\uD83D\uDDC4\uFE0F', color: colors.purple, desc: 'Banco de dados', managed: false },
+    traefik: { name: 'Traefik', icon: '\uD83D\uDD00', color: colors.yellow, desc: 'Proxy reverso e SSL', managed: false },
+    panel: { name: 'Setup Panel', icon: '\uD83D\uDEE0\uFE0F', color: colors.brand, desc: 'Painel de controle', managed: false },
+    other: { name: 'Outros', icon: '\uD83D\uDCE6', color: colors.textMuted, desc: '', managed: false },
+  };
+
+  // ── Group containers by tool ──
+  const toolGroups = {};
   containers.forEach((c) => {
-    const parts = c.name.split('_');
-    const stack = parts.length > 1 ? parts[0] : 'outros';
-    if (!stacks[stack]) stacks[stack] = [];
-    stacks[stack].push(c);
+    const g = getToolGroup(c.name);
+    if (!toolGroups[g]) toolGroups[g] = [];
+    toolGroups[g].push(c);
   });
+
+  const groupOrder = ['n8n', 'evolution', 'portainer', 'postgres', 'traefik', 'panel', 'other'];
+  const visibleGroups = Object.entries(toolGroups)
+    .filter(([g, items]) => {
+      if (!showAdvanced && g === 'panel') return false;
+      if (!showAdvanced && items.every((c) => c.state !== 'running')) return false;
+      return true;
+    })
+    .sort((a, b) => groupOrder.indexOf(a[0]) - groupOrder.indexOf(b[0]));
+
+  const running = containers.filter((c) => c.state === 'running').length;
 
   if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><Spinner size={28} /></div>;
 
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
-      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Monitoramento</h1>
-      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>Status em tempo real dos containers. Atualizacao a cada 10s.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Monitoramento</h1>
+          <p style={{ fontSize: 14, color: colors.textMuted }}>Status em tempo real dos seus servicos. Atualizacao a cada 10s.</p>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: colors.textMuted, fontFamily: mono, whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={showAdvanced} onChange={(e) => setShowAdvanced(e.target.checked)} style={{ accentColor: colors.brand }} />
+          Mostrar detalhes avancados
+        </label>
+      </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Containers', value: containers.length, color: colors.blue },
-          { label: 'Running', value: running, color: colors.green },
+          { label: 'Ativos', value: running, color: colors.green },
           { label: 'RAM VPS', value: sysInfo ? `${sysInfo.ram_used_mb}/${sysInfo.ram_total_mb} MB` : '---', color: colors.brand },
           { label: 'Disco', value: sysInfo?.disk_percentage || '---', color: colors.purple },
         ].map((s, i) => (
@@ -908,58 +1000,114 @@ function MonitorPage() {
         ))}
       </div>
 
-      {/* Containers by Stack */}
-      {Object.entries(stacks).map(([stack, items]) => (
-        <div key={stack} style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontFamily: mono, color: colors.textDim, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-            Stack: {stack}
-          </div>
-          <Card>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.8fr 1fr 1.8fr', padding: '11px 18px', borderBottom: `1px solid ${colors.border}`, background: 'rgba(255,255,255,0.02)' }}>
-              {['Container', 'Status', 'CPU', 'RAM', 'Acoes'].map((h) => (
-                <span key={h} style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, textAlign: h === 'Acoes' ? 'right' : 'left' }}>{h}</span>
-              ))}
-            </div>
-            {items.map((c, i) => {
-              const toolType = getToolType(c.name);
-              const isManaged = managedTools.includes(toolType);
-              return (
-                <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.8fr 1fr 1.8fr', padding: '12px 18px', alignItems: 'center', borderBottom: `1px solid rgba(255,255,255,0.03)`, background: i % 2 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 3, height: 26, borderRadius: 2, background: toolColors[toolType] || colors.textMuted }} />
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, fontFamily: mono, color: '#fff' }}>{c.name.slice(0, 35)}</div>
-                      <div style={{ fontSize: 10, color: colors.textDim, fontFamily: mono }}>{c.image.slice(0, 40)}</div>
-                    </div>
+      {/* Tool Cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {visibleGroups.map(([group, items]) => {
+          const def = toolDefs[group] || toolDefs.other;
+          const allRunning = items.length > 0 && items.every((c) => c.state === 'running');
+          const mainContainer = items.find((c) => {
+            const fn = getFriendly(c.name, group);
+            return fn !== 'Redis' && fn !== 'Agent';
+          }) || items[0];
+          const version = mainContainer ? (mainContainer.image.split(':').pop() || 'latest') : '---';
+          const displayItems = showAdvanced ? items : items.filter((c) => c.state === 'running');
+
+          return (
+            <Card key={group} style={{ overflow: 'hidden', borderColor: def.color + '20' }}>
+              {/* Tool header */}
+              <div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, background: def.color + '12', border: `1px solid ${def.color}25` }}>
+                    {def.icon}
                   </div>
-                  <Tooltip text="Mostra se o container esta ativo ou parado">
-                    <StatusBadge status={c.state} />
-                  </Tooltip>
-                  <Tooltip text="Quanto do processador este container esta usando">
-                    <span style={{ fontSize: 12, color: colors.textMuted, fontFamily: mono }}>{c.cpu || '---'}</span>
-                  </Tooltip>
-                  <Tooltip text="Memoria RAM que este container esta consumindo">
-                    <span style={{ fontSize: 12, color: colors.textMuted, fontFamily: mono }}>{c.ram?.split('/')[0] || '---'}</span>
-                  </Tooltip>
-                  <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                    {c.state === 'running' ? (
-                      <Btn variant="danger" onClick={() => action(c.id, 'stop')} loading={actionLoading === `${c.id}_stop`} style={{ padding: '5px 10px', fontSize: 10 }}>Stop</Btn>
-                    ) : (
-                      <Btn variant="success" onClick={() => action(c.id, 'start')} loading={actionLoading === `${c.id}_start`} style={{ padding: '5px 10px', fontSize: 10 }}>Start</Btn>
-                    )}
-                    <Btn variant="ghost" onClick={() => action(c.id, 'restart')} loading={actionLoading === `${c.id}_restart`} style={{ padding: '5px 10px', fontSize: 10 }}>Restart</Btn>
-                    <Btn variant="ghost" onClick={() => setLogModal({ id: c.id, name: c.name })} style={{ padding: '5px 10px', fontSize: 10 }}>Logs</Btn>
-                    <Btn variant="ghost" onClick={() => setEnvModal({ id: c.service_id || c.id, name: c.name })} style={{ padding: '5px 10px', fontSize: 10 }}>Env</Btn>
-                    {isManaged && (
-                      <Btn variant="ghost" onClick={() => setVersionModal({ id: toolType, name: c.name })} style={{ padding: '5px 10px', fontSize: 10 }}>Versao</Btn>
-                    )}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, fontFamily: mono }}>{def.name}</span>
+                      <Tooltip text={allRunning ? 'Todos os servicos estao funcionando normalmente' : 'Um ou mais servicos estao parados'}>
+                        <StatusBadge status={allRunning ? 'running' : 'stopped'} />
+                      </Tooltip>
+                    </div>
+                    <div style={{ fontSize: 12, color: colors.textDim, marginTop: 2 }}>{def.desc}</div>
                   </div>
                 </div>
-              );
-            })}
-          </Card>
-        </div>
-      ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Tooltip text="Versao da imagem Docker em uso">
+                    <span style={{ fontSize: 11, fontFamily: mono, color: colors.textMuted, padding: '4px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: `1px solid ${colors.border}` }}>
+                      {version}
+                    </span>
+                  </Tooltip>
+                  {def.managed && (
+                    <Btn variant="ghost" onClick={() => setVersionModal({ id: group, name: def.name })} style={{ padding: '6px 12px', fontSize: 11 }}>
+                      Alterar versao
+                    </Btn>
+                  )}
+                </div>
+              </div>
+
+              {/* Sub-container mini-cards */}
+              <div style={{ padding: 18 }}>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {displayItems.map((c) => {
+                    const friendly = getFriendly(c.name, group);
+                    const isRunning = c.state === 'running';
+                    const ramVal = c.ram ? c.ram.split('/')[0].trim() : '---';
+                    const cpuVal = c.cpu || '---';
+                    return (
+                      <Tooltip key={c.id} text={subTooltips[group + '_' + friendly] || ('Container do servico ' + friendly)}>
+                        <div style={{
+                          padding: '12px 16px', borderRadius: 10, minWidth: 120,
+                          border: `1px solid ${isRunning ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
+                          background: isRunning ? 'rgba(34,197,94,0.03)' : 'rgba(239,68,68,0.03)',
+                        }}>
+                          <div style={{ fontWeight: 600, fontSize: 13, fontFamily: mono, color: '#fff', marginBottom: 8 }}>{friendly}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <Tooltip text={isRunning ? 'Este servico esta funcionando normalmente' : 'Este servico esta parado'}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: isRunning ? colors.green : colors.red, display: 'inline-block', animation: isRunning ? 'pulse 2s infinite' : 'none' }} />
+                            </Tooltip>
+                            <Tooltip text="Quanto do processador este servico esta usando. Abaixo de 50% e normal">
+                              <span style={{ fontSize: 11, fontFamily: mono, color: colors.textMuted }}>{cpuVal}</span>
+                            </Tooltip>
+                          </div>
+                          <Tooltip text="Memoria consumida. Valores entre 100-500MB sao normais para a maioria dos servicos">
+                            <div style={{ fontSize: 11, fontFamily: mono, color: colors.textDim }}>{ramVal}</div>
+                          </Tooltip>
+                        </div>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Btn variant="ghost" onClick={() => { items.filter((c) => c.state === 'running').forEach((c) => action(c.id, 'restart')); }}
+                    loading={items.some((c) => actionLoading === `${c.id}_restart`)} style={{ fontSize: 11 }}>
+                    Reiniciar
+                  </Btn>
+                  <Btn variant="danger" onClick={() => { items.filter((c) => c.state === 'running').forEach((c) => action(c.id, 'stop')); }}
+                    loading={items.some((c) => actionLoading === `${c.id}_stop`)} style={{ fontSize: 11 }}>
+                    Parar
+                  </Btn>
+                  {!items.every((c) => c.state === 'running') && (
+                    <Btn variant="success" onClick={() => { items.filter((c) => c.state !== 'running').forEach((c) => action(c.id, 'start')); }}
+                      loading={items.some((c) => actionLoading === `${c.id}_start`)} style={{ fontSize: 11 }}>
+                      Iniciar
+                    </Btn>
+                  )}
+                  <Btn variant="ghost" onClick={() => setLogModal({ id: (mainContainer || items[0]).id, name: def.name })} style={{ fontSize: 11 }}>
+                    Ver Logs
+                  </Btn>
+                  {def.managed && (
+                    <Btn variant="ghost" onClick={() => setEnvModal({ id: (mainContainer || items[0]).service_id || (mainContainer || items[0]).id, name: def.name })} style={{ fontSize: 11 }}>
+                      Variaveis
+                    </Btn>
+                  )}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
       {containers.length === 0 && (
         <Card style={{ padding: 40, textAlign: 'center' }}>
           <div style={{ color: colors.textDim, fontSize: 14 }}>Nenhum container encontrado</div>
@@ -1146,13 +1294,27 @@ function BackupPage() {
   return (
     <div style={{ animation: 'fadeUp 0.4s ease-out' }}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6 }}>Backup & Restore</h1>
-      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 28 }}>
-        Backup inteligente: bancos PostgreSQL, instances Evolution, configuracoes e credenciais.
+      <p style={{ fontSize: 14, color: colors.textMuted, marginBottom: 12 }}>
+        Copias de seguranca automaticas e manuais do seu servidor.
       </p>
 
-      <Card style={{ padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(34,197,94,0.03)', borderColor: 'rgba(34,197,94,0.1)' }}>
-        <span style={{ fontSize: 16 }}>⏰</span>
-        <span style={{ fontSize: 12, color: colors.textMuted, fontFamily: mono }}>Auto-backup diario as 03:00 (horario de Brasilia). Mantem os 7 mais recentes.</span>
+      <Card style={{ padding: '18px 22px', marginBottom: 20, background: 'rgba(34,197,94,0.03)', borderColor: 'rgba(34,197,94,0.1)' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: colors.text }}>O que e salvo no backup:</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+          {[
+            'Todos os seus workflows e automacoes do n8n',
+            'Instancias e configuracoes do WhatsApp (Evolution)',
+            'Banco de dados completo (PostgreSQL)',
+            'Suas credenciais e configuracoes do painel',
+          ].map((item, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, fontFamily: mono }}>
+              <span style={{ color: colors.green }}>&#10003;</span> {item}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colors.textMuted, fontFamily: mono, paddingTop: 10, borderTop: `1px solid ${colors.border}` }}>
+          <span>&#9200;</span> Backup automatico todo dia as 03:00 (horario de Brasilia). Mantem os 7 mais recentes.
+        </div>
       </Card>
 
       {msg && (
@@ -1172,7 +1334,7 @@ function BackupPage() {
         <Card style={{ padding: 26 }}>
           <div style={{ fontSize: 36, marginBottom: 14 }}>📦</div>
           <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Criar Backup</h3>
-          <p style={{ fontSize: 12, color: colors.textMuted, marginBottom: 18, lineHeight: 1.6 }}>pg_dump dos bancos + instances + configs</p>
+          <p style={{ fontSize: 12, color: colors.textMuted, marginBottom: 18, lineHeight: 1.6 }}>Salva uma copia de seguranca de tudo. Recomendado antes de atualizar versoes.</p>
           <Btn onClick={create} loading={creating} disabled={creating}>Gerar Backup</Btn>
         </Card>
 
@@ -1217,6 +1379,8 @@ function EnvironmentsPage() {
   const [creating, setCreating] = useState(false);
   const [destroying, setDestroying] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [domainBase, setDomainBase] = useState('');
+  const [showPass, setShowPass] = useState({});
 
   const refresh = useCallback(async () => {
     try {
@@ -1226,6 +1390,16 @@ function EnvironmentsPage() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    api('/install/suggestions').then((s) => {
+      if (s && s.domain_n8n) {
+        const parts = s.domain_n8n.split('.');
+        if (parts.length > 2) setDomainBase(parts.slice(1).join('.'));
+        else if (parts.length === 2) setDomainBase(s.domain_n8n);
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleCreate = async () => {
     if (!newEnvName.trim()) return;
@@ -1289,24 +1463,67 @@ function EnvironmentsPage() {
           <p style={{ fontSize: 13, color: colors.textMuted }}>Nenhum ambiente de teste criado ainda.</p>
         </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
-          {environments.map((env) => (
-            <Card key={env.name} style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, fontFamily: mono, marginBottom: 4 }}>{env.name}</div>
-                  <StatusBadge status={env.status === 'running' ? 'running' : 'stopped'} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: 14 }}>
+          {environments.map((env) => {
+            const stacks = env.stacks || [];
+            const hasN8n = stacks.some((s) => s.includes('_n8n'));
+            const hasEvolution = stacks.some((s) => s.includes('_evolution'));
+            const urls = [];
+            if (hasN8n && domainBase) urls.push({ label: 'n8n', url: `https://${env.name}-n8n.${domainBase}` });
+            if (hasEvolution && domainBase) urls.push({ label: 'Evolution', url: `https://${env.name}-evolution.${domainBase}` });
+
+            return (
+              <Card key={env.name} style={{ overflow: 'hidden' }}>
+                <div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 700, fontFamily: mono, marginBottom: 4 }}>{env.name}</div>
+                      <StatusBadge status={env.status === 'running' ? 'running' : 'stopped'} />
+                    </div>
+                    <Btn variant="danger" onClick={() => handleDestroy(env.name)} loading={destroying === env.name} style={{ padding: '5px 12px', fontSize: 10 }}>
+                      Destruir ambiente
+                    </Btn>
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 11, color: colors.textDim, fontFamily: mono, marginTop: 8 }}>
+                    {env.created_at && <span>Criado em {new Date(env.created_at).toLocaleDateString('pt-BR')}</span>}
+                    {env.containers_total !== undefined && <span>{env.containers_running || 0}/{env.containers_total} containers ativos</span>}
+                  </div>
                 </div>
-                <Btn variant="danger" onClick={() => handleDestroy(env.name)} loading={destroying === env.name} style={{ padding: '5px 12px', fontSize: 10 }}>
-                  Destruir
-                </Btn>
-              </div>
-              <div style={{ display: 'flex', gap: 16, fontSize: 11, color: colors.textDim, fontFamily: mono }}>
-                {env.created_at && <span>Criado em {new Date(env.created_at).toLocaleDateString('pt-BR')}</span>}
-                {env.container_count !== undefined && <span>{env.container_count} container{env.container_count !== 1 ? 's' : ''}</span>}
-              </div>
-            </Card>
-          ))}
+
+                {/* URLs */}
+                {urls.length > 0 && (
+                  <div style={{ padding: '14px 22px', borderBottom: `1px solid ${colors.border}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 8 }}>Links de acesso:</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {urls.map((u) => (
+                        <div key={u.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 11, color: colors.textDim, fontFamily: mono, minWidth: 70 }}>{u.label}:</span>
+                          <a href={u.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontFamily: mono, color: colors.brand, textDecoration: 'none' }}>
+                            {u.url}
+                          </a>
+                          <CopyBtn text={u.url} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tools info */}
+                <div style={{ padding: '12px 22px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, fontFamily: mono, marginBottom: 6 }}>Ferramentas:</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {hasN8n && (
+                      <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.brand + '12', color: colors.brand, border: `1px solid ${colors.brand}25` }}>n8n</span>
+                    )}
+                    {hasEvolution && (
+                      <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.green + '12', color: colors.green, border: `1px solid ${colors.green}25` }}>Evolution</span>
+                    )}
+                    <span style={{ padding: '3px 10px', borderRadius: 8, fontSize: 11, fontFamily: mono, background: colors.purple + '12', color: colors.purple, border: `1px solid ${colors.purple}25` }}>PostgreSQL</span>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -1478,7 +1695,7 @@ export default function App() {
       <aside style={{ width: 240, padding: '26px 18px', borderRight: `1px solid ${colors.border}`, background: 'rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ marginBottom: 36, padding: '0 8px' }}>
           <div style={{ fontSize: 20, fontWeight: 800, fontFamily: mono, background: `linear-gradient(135deg, ${colors.brand}, ${colors.brandDark})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>N8N LABZ</div>
-          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.1</div>
+          <div style={{ fontSize: 9, color: colors.textDim, fontFamily: mono, letterSpacing: '0.15em', marginTop: 4 }}>SETUP PANEL v2.2</div>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
