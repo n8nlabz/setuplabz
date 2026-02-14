@@ -1,82 +1,77 @@
 #!/bin/bash
-# ╔══════════════════════════════════════════════════════════════╗
-# ║           N8N LABZ Setup Panel - Instalador v2.0            ║
-# ╚══════════════════════════════════════════════════════════════╝
 set -e
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'; BOLD='\033[1m'
 MAGENTA='\033[0;35m'
 
+BT='`'
+
 INSTALL_DIR="/opt/n8nlabz"
-REPO_URL="https://github.com/n8nlabz/labz-setup.git"
-CONFIG_FILE="$INSTALL_DIR/config.json"
-
-banner() {
-  clear
-  echo -e "${RED}"
-  echo '  ███╗   ██╗ █████╗ ███╗   ██╗    ██╗      █████╗ ██████╗ ███████╗'
-  echo '  ████╗  ██║██╔══██╗████╗  ██║    ██║     ██╔══██╗██╔══██╗╚══███╔╝'
-  echo '  ██╔██╗ ██║╚█████╔╝██╔██╗ ██║    ██║     ███████║██████╔╝  ███╔╝ '
-  echo '  ██║╚██╗██║██╔══██╗██║╚██╗██║    ██║     ██╔══██║██╔══██╗ ███╔╝  '
-  echo '  ██║ ╚████║╚█████╔╝██║ ╚████║    ███████╗██║  ██║██████╔╝███████╗'
-  echo '  ╚═╝  ╚═══╝ ╚════╝ ╚═╝  ╚═══╝    ╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝'
-  echo -e "${NC}"
-  echo -e "  ${BOLD}Setup Panel Installer v2.0${NC}"
-  echo -e "  ${CYAN}Automação simplificada para sua VPS${NC}\n"
-}
-
-log_ok() { echo -e "  ${GREEN}✅${NC} $1"; }
-log_info() { echo -e "  ${BLUE}ℹ${NC}  $1"; }
-log_warn() { echo -e "  ${YELLOW}⚠${NC}  $1"; }
-log_err() { echo -e "  ${RED}❌${NC} $1"; }
-log_step() { echo -e "\n  ${MAGENTA}▸${NC} ${BOLD}$1${NC}"; }
+REPO_URL="https://github.com/n8nlabz/setuplabz.git"
 
 # ── Root check ──
-[ "$EUID" -ne 0 ] && { log_err "Execute como root: sudo bash install.sh"; exit 1; }
+[ "$EUID" -ne 0 ] && { echo -e "  ${RED}❌${NC} Execute como root: sudo bash install.sh"; exit 1; }
 
-banner
-
-echo -e "  👋 ${BOLD}Bem-vindo ao N8N LABZ Setup Panel!${NC}"
-echo -e "  Vamos preparar sua VPS em poucos minutos."
-echo -e "  Relaxa que é tudo automático 😎\n"
-
-# ══════════════════════════════════════
-# COLETA DE DADOS (5 perguntas)
-# ══════════════════════════════════════
-log_step "Configuração inicial"
+clear
+echo -e "${RED}"
+echo '  ███╗   ██╗ █████╗ ███╗   ██╗    ██╗      █████╗ ██████╗ ███████╗'
+echo '  ████╗  ██║██╔══██╗████╗  ██║    ██║     ██╔══██╗██╔══██╗╚══███╔╝'
+echo '  ██╔██╗ ██║╚█████╔╝██╔██╗ ██║    ██║     ███████║██████╔╝  ███╔╝ '
+echo '  ██║╚██╗██║██╔══██╗██║╚██╗██║    ██║     ██╔══██║██╔══██╗ ███╔╝  '
+echo '  ██║ ╚████║╚█████╔╝██║ ╚████║    ███████╗██║  ██║██████╔╝███████╗'
+echo '  ╚═╝  ╚═══╝ ╚════╝ ╚═╝  ╚═══╝    ╚══════╝╚═╝  ╚═╝╚═════╝ ╚══════╝'
+echo -e "${NC}"
 echo ""
+echo -e "  ${BOLD}Painel de Instalação de Ferramentas da Comunidade N8N LABZ${NC}"
+echo ""
+echo -e "  Seja bem-vindo ao nosso painel! 🎉"
+echo ""
+echo -e "  Iremos preparar a sua VPS em poucos minutos, ok?"
+echo -e "  Relaxa que é tudo automático 😎"
+echo ""
+
+# ══════════════════════════════════════
+# COLETA DE DADOS
+# ══════════════════════════════════════
+echo -e "\n  ${MAGENTA}▸${NC} ${BOLD}Configuração inicial${NC}\n"
 
 BASE_DOMAIN=""
 while [ -z "$BASE_DOMAIN" ]; do
-  printf "  📌 Qual seu domínio base? (ex: seudominio.com): " >&2
+  printf "  📌 Qual o seu domínio base? (ex: seudominio.com.br): " >&2
   read BASE_DOMAIN < /dev/tty
   BASE_DOMAIN=$(echo "$BASE_DOMAIN" | sed 's|https\?://||' | sed 's|/||g' | xargs)
-  [ -z "$BASE_DOMAIN" ] && log_warn "Domínio base é obrigatório."
+  [ -z "$BASE_DOMAIN" ] && echo -e "  ${YELLOW}⚠${NC}  Domínio base é obrigatório."
 done
+
+echo ""
+echo -e "  Agora precisamos do seu email e senha para você ter acesso"
+echo -e "  ao painel onde vai conseguir fazer toda a gestão da sua VPS"
+echo -e "  de uma forma simples!"
+echo ""
 
 ADMIN_EMAIL=""
 while [ -z "$ADMIN_EMAIL" ]; do
-  printf "  📧 Seu email (para login e certificado SSL): " >&2
+  printf "  📧 Seu email: " >&2
   read ADMIN_EMAIL < /dev/tty
   ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)
-  [ -z "$ADMIN_EMAIL" ] && log_warn "Email é obrigatório."
+  [ -z "$ADMIN_EMAIL" ] && echo -e "  ${YELLOW}⚠${NC}  Email é obrigatório."
 done
 
 ADMIN_PASS=""
 while true; do
-  printf "  🔒 Senha do administrador: " >&2
+  printf "  🔒 Sua senha: " >&2
   read -s ADMIN_PASS < /dev/tty
   echo ""
   if [ -z "$ADMIN_PASS" ]; then
-    log_warn "Senha é obrigatória."
+    echo -e "  ${YELLOW}⚠${NC}  Senha é obrigatória."
     continue
   fi
   printf "  🔒 Confirme a senha: " >&2
   read -s ADMIN_PASS2 < /dev/tty
   echo ""
   if [ "$ADMIN_PASS" != "$ADMIN_PASS2" ]; then
-    log_warn "As senhas não coincidem. Tente novamente."
+    echo -e "  ${YELLOW}⚠${NC}  As senhas não coincidem. Tente novamente."
     ADMIN_PASS=""
     continue
   fi
@@ -85,90 +80,82 @@ done
 
 ADMIN_PASS_HASH=$(echo -n "$ADMIN_PASS" | sha256sum | cut -d' ' -f1)
 
-printf "  🏷️  Nome do servidor (default: n8nlabz): " >&2
-read SERVER_NAME < /dev/tty
-SERVER_NAME=$(echo "$SERVER_NAME" | xargs)
-[ -z "$SERVER_NAME" ] && SERVER_NAME="n8nlabz"
+echo ""
+SERVER_NAME=""
+while [ -z "$SERVER_NAME" ]; do
+  printf "  🏷️  Nome do servidor (ex: n8nlabz, meuserver, minhaempresa): " >&2
+  read SERVER_NAME < /dev/tty
+  SERVER_NAME=$(echo "$SERVER_NAME" | xargs)
+  [ -z "$SERVER_NAME" ] && echo -e "  ${YELLOW}⚠${NC}  Nome do servidor é obrigatório."
+done
 
-DEFAULT_NETWORK="${SERVER_NAME}_network"
-printf "  🌐 Nome da rede Docker interna (default: ${DEFAULT_NETWORK}): " >&2
-read NETWORK_NAME < /dev/tty
-NETWORK_NAME=$(echo "$NETWORK_NAME" | xargs)
-[ -z "$NETWORK_NAME" ] && NETWORK_NAME="$DEFAULT_NETWORK"
+NETWORK_NAME=""
+while [ -z "$NETWORK_NAME" ]; do
+  printf "  🌐 Nome da rede (ex: n8nlabznet, minharede): " >&2
+  read NETWORK_NAME < /dev/tty
+  NETWORK_NAME=$(echo "$NETWORK_NAME" | xargs)
+  [ -z "$NETWORK_NAME" ] && echo -e "  ${YELLOW}⚠${NC}  Nome da rede é obrigatório."
+done
 
-DASHBOARD_DOMAIN="dashboard.${BASE_DOMAIN}"
+SERVER_IP=$(curl -4 -s ifconfig.me || curl -s ifconfig.me)
 
 echo ""
-log_ok "Domínio base: ${BASE_DOMAIN}"
-log_ok "Email: ${ADMIN_EMAIL}"
-log_ok "Servidor: ${SERVER_NAME}"
-log_ok "Rede: ${NETWORK_NAME}"
-log_ok "Painel: ${DASHBOARD_DOMAIN}"
+echo -e "  ${YELLOW}⚠️  IMPORTANTE:${NC} Antes de continuar, você precisa apontar o DNS"
+echo -e "  do subdomínio do seu painel para o IP desta VPS: ${BOLD}${SERVER_IP}${NC}"
+echo ""
+echo -e "  O subdomínio pode ser qualquer um, por exemplo:"
+echo -e "  ${CYAN}  dashboard.seudominio.com.br${NC}"
+echo -e "  ${CYAN}  painel.seudominio.com.br${NC}"
+echo -e "  ${CYAN}  console.seudominio.com.br${NC}"
+echo ""
+
+DASHBOARD_DOMAIN=""
+while [ -z "$DASHBOARD_DOMAIN" ]; do
+  printf "  🌐 Digite o link completo do seu painel (ex: painel.seudominio.com.br): " >&2
+  read DASHBOARD_DOMAIN < /dev/tty
+  DASHBOARD_DOMAIN=$(echo "$DASHBOARD_DOMAIN" | sed 's|https\?://||' | sed 's|/||g' | xargs)
+  [ -z "$DASHBOARD_DOMAIN" ] && echo -e "  ${YELLOW}⚠${NC}  Domínio do painel é obrigatório."
+done
+
+echo ""
+echo -e "  ⏳ Preparando sua VPS... isso pode levar alguns minutos."
+echo -e "     Não feche este terminal!"
 echo ""
 
 # ══════════════════════════════════════
-# ATUALIZAÇÃO DO SISTEMA
+# INSTALAÇÃO SILENCIOSA
 # ══════════════════════════════════════
-log_step "🔧 Atualizando seu servidor..."
-log_info "Isso garante que tudo funcione direitinho"
+
+# Sistema
 apt-get update >/dev/null 2>&1
 apt-get upgrade -y >/dev/null 2>&1
-log_ok "Servidor atualizado!"
+apt-get install -y curl git jq apache2-utils >/dev/null 2>&1
 
-log_info "Instalando dependências..."
-apt-get install -y curl wget git jq >/dev/null 2>&1
-log_ok "Dependências instaladas!"
-
-# ══════════════════════════════════════
-# DOCKER
-# ══════════════════════════════════════
-log_step "🐳 Docker"
-if command -v docker &>/dev/null; then
-  log_ok "Docker $(docker --version | cut -d' ' -f3 | cut -d',' -f1) já instalado"
-else
-  log_info "Instalando o Docker... (é ele que roda todas as ferramentas)"
+# Docker
+if ! command -v docker &>/dev/null; then
   curl -fsSL https://get.docker.com | sh >/dev/null 2>&1
   systemctl enable docker >/dev/null 2>&1 && systemctl start docker >/dev/null 2>&1
-  log_ok "Docker instalado!"
 fi
 
-# ── Swarm ──
-log_step "🌐 Docker Swarm"
-SWARM=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null)
-if [ "$SWARM" = "active" ]; then
-  log_ok "Swarm já está ativo"
-else
-  IP=$(curl -s --max-time 5 ifconfig.me || hostname -I | awk '{print $1}')
-  docker swarm init --advertise-addr "$IP" >/dev/null 2>&1
-  log_ok "Swarm inicializado ($IP)"
+# Swarm
+SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null)
+if [ "$SWARM_STATE" != "active" ]; then
+  docker swarm init --advertise-addr "$SERVER_IP" >/dev/null 2>&1
 fi
 
-# ── Rede ──
-log_step "🌐 Rede interna"
-log_info "Configurando a rede '${NETWORK_NAME}'... (pra suas ferramentas se comunicarem)"
-if docker network ls --format '{{.Name}}' | grep -qx "${NETWORK_NAME}"; then
-  log_ok "${NETWORK_NAME} já existe"
-else
+# Rede
+if ! docker network ls --format '{{.Name}}' | grep -qx "${NETWORK_NAME}"; then
   docker network create --driver overlay --attachable "${NETWORK_NAME}" >/dev/null 2>&1
-  log_ok "Rede ${NETWORK_NAME} criada!"
 fi
 
-# ── Volumes ──
-log_step "📁 Volumes Docker"
-log_info "Criando volumes para armazenamento persistente..."
-for vol in volume_swarm_certificates volume_swarm_shared portainer_data postgres_data n8n_redis evolution_instances evolution_redis; do
+# Volumes
+for vol in volume_swarm_certificates volume_swarm_shared postgres_data n8n_redis evolution_instances evolution_redis portainer_data; do
   docker volume create "$vol" >/dev/null 2>&1 || true
 done
-log_ok "Volumes criados!"
 
-# ══════════════════════════════════════
-# TRAEFIK v3.5.3
-# ══════════════════════════════════════
-log_step "🔒 Traefik (Proxy Reverso + SSL)"
-log_info "Instalando o Traefik... (ele cuida dos certificados SSL automaticamente)"
-
+# Traefik
 TRAEFIK_COMPOSE="/tmp/traefik-compose.yml"
-cat > "$TRAEFIK_COMPOSE" <<TRAEFIKEOF
+cat > "$TRAEFIK_COMPOSE" <<EOF
 version: "3.8"
 services:
   traefik:
@@ -214,7 +201,7 @@ services:
         - "traefik.enable=true"
         - "traefik.http.middlewares.redirect-https.redirectscheme.scheme=https"
         - "traefik.http.middlewares.redirect-https.redirectscheme.permanent=true"
-        - "traefik.http.routers.http-catchall.rule=Host(\`{host:.+}\`)"
+        - "traefik.http.routers.http-catchall.rule=Host(${BT}{host:.+}${BT})"
         - "traefik.http.routers.http-catchall.entrypoints=web"
         - "traefik.http.routers.http-catchall.middlewares=redirect-https@docker"
         - "traefik.http.routers.http-catchall.priority=1"
@@ -228,98 +215,52 @@ networks:
   network_public:
     external: true
     name: ${NETWORK_NAME}
-TRAEFIKEOF
-
+EOF
 docker stack deploy -c "$TRAEFIK_COMPOSE" traefik >/dev/null 2>&1
 rm -f "$TRAEFIK_COMPOSE"
-log_ok "Traefik rodando com SSL via Let's Encrypt!"
 
-# ══════════════════════════════════════
-# PAINEL N8N LABZ
-# ══════════════════════════════════════
-log_step "📦 N8N LABZ Panel"
-
-# Garantir que git está instalado
-if ! command -v git &>/dev/null; then
-  log_info "Instalando git..."
-  apt-get install -y git >/dev/null 2>&1
-fi
-
-# Preservar backups existentes
-TMP_BACKUPS="/tmp/n8nlabz-backups"
-[ -d "$INSTALL_DIR/backups" ] && cp -r "$INSTALL_DIR/backups" "$TMP_BACKUPS"
-
+# Repo
 if [ -d "$INSTALL_DIR/.git" ]; then
-  log_info "Atualizando repositório..."
   cd "$INSTALL_DIR" && git pull >/dev/null 2>&1
-  log_ok "Repositório atualizado"
 else
   [ -d "$INSTALL_DIR" ] && rm -rf "$INSTALL_DIR"
-
-  log_info "Clonando repositório..."
   git clone "$REPO_URL" "$INSTALL_DIR" >/dev/null 2>&1 || {
-    log_err "Falha ao clonar $REPO_URL"
+    echo -e "  ${RED}❌${NC} Falha ao clonar repositório. Verifique sua conexão."
     exit 1
   }
-  log_ok "Repositório clonado em $INSTALL_DIR"
 fi
-
-# Restaurar backups
-[ -d "$TMP_BACKUPS" ] && cp -r "$TMP_BACKUPS" "$INSTALL_DIR/backups"
-rm -rf "$TMP_BACKUPS"
 mkdir -p "$INSTALL_DIR"/{backups,data}
 
-# Salvar config
-IP=$(curl -s --max-time 5 ifconfig.me || hostname -I | awk '{print $1}')
-
+# Config
 cat > "$INSTALL_DIR/config.json" <<EOF
 {
-  "server_name": "${SERVER_NAME}",
   "domain_base": "${BASE_DOMAIN}",
-  "email_ssl": "${ADMIN_EMAIL}",
-  "dashboard_domain": "${DASHBOARD_DOMAIN}",
   "admin_email": "${ADMIN_EMAIL}",
   "admin_password_hash": "${ADMIN_PASS_HASH}",
-  "ip": "${IP}",
+  "server_name": "${SERVER_NAME}",
   "network_name": "${NETWORK_NAME}",
+  "dashboard_domain": "${DASHBOARD_DOMAIN}",
+  "ip": "${SERVER_IP}",
   "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
 
-# Inicializar credentials.json
 if [ ! -f "$INSTALL_DIR/credentials.json" ]; then
   echo '{}' > "$INSTALL_DIR/credentials.json"
 fi
 
-log_ok "Configuração salva"
-
-# Verificar arquivos essenciais
+# Verificar arquivos
 if [ ! -f "$INSTALL_DIR/Dockerfile" ] || [ ! -d "$INSTALL_DIR/backend" ] || [ ! -d "$INSTALL_DIR/frontend" ]; then
-  log_err "Arquivos essenciais não encontrados em $INSTALL_DIR (Dockerfile, backend/, frontend/)"
+  echo -e "  ${RED}❌${NC} Arquivos do painel não encontrados. Verifique o repositório."
   exit 1
 fi
 
-# ── Build ──
-log_step "🔨 Build do painel"
-log_info "Buildando imagem Docker... (pode demorar alguns minutos)"
-
-# Remover serviço systemd antigo se existir
-if systemctl is-enabled n8nlabz-panel &>/dev/null 2>&1; then
-  systemctl stop n8nlabz-panel >/dev/null 2>&1 || true
-  systemctl disable n8nlabz-panel >/dev/null 2>&1 || true
-  rm -f /etc/systemd/system/n8nlabz-panel.service
-  systemctl daemon-reload >/dev/null 2>&1
-fi
-
+# Build
 cd "$INSTALL_DIR" && docker build -t n8nlabz-panel:latest . >/dev/null 2>&1
-log_ok "Imagem buildada!"
 
-# ── Deploy do painel ──
-log_step "🚀 Deploy do painel"
-
+# Deploy painel
 PANEL_COMPOSE="/tmp/panel-compose.yml"
-
-cat > "$PANEL_COMPOSE" <<COMPOSEEOF
+cat > "$PANEL_COMPOSE" <<EOF
 version: "3.8"
 services:
   n8nlabz_panel:
@@ -340,7 +281,7 @@ services:
           - node.role == manager
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.n8nlabz.rule=Host(\`${DASHBOARD_DOMAIN}\`)"
+        - "traefik.http.routers.n8nlabz.rule=Host(${BT}${DASHBOARD_DOMAIN}${BT})"
         - "traefik.http.routers.n8nlabz.entrypoints=websecure"
         - "traefik.http.routers.n8nlabz.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.n8nlabz.loadbalancer.server.port=3080"
@@ -350,53 +291,27 @@ networks:
   network_public:
     external: true
     name: ${NETWORK_NAME}
-COMPOSEEOF
-
+EOF
 docker stack deploy -c "$PANEL_COMPOSE" panel >/dev/null 2>&1
 rm -f "$PANEL_COMPOSE"
-log_ok "Painel instalado!"
 
-# ── Aguardar estabilização ──
-log_info "Aguardando containers estabilizarem..."
 sleep 10
 
 # ══════════════════════════════════════
-# RESUMO FINAL
+# MENSAGEM FINAL
 # ══════════════════════════════════════
 echo ""
 echo -e "  ════════════════════════════════════════════════════════"
-echo -e "  ${GREEN}${BOLD}  🚀 N8N LABZ Setup Panel instalado com sucesso!${NC}"
-echo -e "  ════════════════════════════════════════════════════════"
 echo ""
-echo -e "  ${BOLD}🌐 Acesse o painel:${NC}"
-echo -e "  ${CYAN}   https://${DASHBOARD_DOMAIN}${NC}"
+echo -e "  ${GREEN}✅ Tudo pronto!${NC}"
 echo ""
-echo -e "  ${BOLD}🔑 Login:${NC}"
-echo -e "  ${CYAN}   Email: ${ADMIN_EMAIL}${NC}"
-echo -e "  ${CYAN}   Senha: (a que você definiu)${NC}"
+echo -e "  🌐 Acesse agora o seu painel:"
+echo -e "     ${CYAN}https://${DASHBOARD_DOMAIN}${NC}"
 echo ""
-echo -e "  ${BOLD}📦 Ferramentas disponíveis no painel:${NC}"
-echo -e "  ${CYAN}   Portainer, n8n, Evolution API${NC}"
-echo -e "  ${CYAN}   Instale tudo pelo dashboard com 1 clique!${NC}"
+echo -e "  🔑 Use o email e senha que você cadastrou pra entrar."
 echo ""
-echo -e "  ${YELLOW}⚠️  Configure o DNS dos subdomínios apontando para: ${IP}${NC}"
+echo -e "  A partir de agora, instale todas as suas ferramentas"
+echo -e "  direto pelo painel. Sem terminal, sem complicação! 🚀"
 echo ""
-echo -e "  ${BOLD}Subdomínios sugeridos para configurar no DNS:${NC}"
-echo -e "  ${CYAN}   dashboard.${BASE_DOMAIN}  →  ${IP}${NC}"
-echo -e "  ${CYAN}   portainer.${BASE_DOMAIN}  →  ${IP}${NC}"
-echo -e "  ${CYAN}   n8n.${BASE_DOMAIN}        →  ${IP}${NC}"
-echo -e "  ${CYAN}   webhook.${BASE_DOMAIN}    →  ${IP}${NC}"
-echo -e "  ${CYAN}   evolution.${BASE_DOMAIN}  →  ${IP}${NC}"
-echo ""
-echo -e "  ${BOLD}Informações do servidor:${NC}"
-echo -e "  ${CYAN}   Nome: ${SERVER_NAME}${NC}"
-echo -e "  ${CYAN}   Rede: ${NETWORK_NAME}${NC}"
-echo ""
-echo -e "  ${BOLD}Comandos úteis:${NC}"
-echo -e "  ${CYAN}  docker service ls${NC}                                    — Serviços"
-echo -e "  ${CYAN}  docker logs -f \$(docker ps -q -f name=n8nlabz_panel)${NC} — Logs"
-echo ""
-echo -e "  ════════════════════════════════════════════════════════"
-echo -e "  ${RED}N8N LABZ${NC} — Comunidade de Automação 🔥"
 echo -e "  ════════════════════════════════════════════════════════"
 echo ""
