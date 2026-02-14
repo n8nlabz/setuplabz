@@ -24,6 +24,22 @@ router.get("/:id/logs", (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get("/:id/env", (req, res) => {
+  try {
+    const env = DockerService.getServiceEnv(req.params.id);
+    res.json({ env });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/:serviceId/env", async (req, res) => {
+  try {
+    const { env } = req.body;
+    if (!env || typeof env !== "object") return res.status(400).json({ error: "Variáveis de ambiente inválidas" });
+    const result = DockerService.updateServiceEnv(req.params.serviceId, env);
+    res.json({ success: true, result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post("/:id/start", (req, res) => {
   try { DockerService.startContainer(req.params.id); res.json({ success: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }

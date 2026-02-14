@@ -13,8 +13,11 @@ class InstallService {
   }
 
   static hostRule(domain) {
-    var bt = String.fromCharCode(96);
-    return "Host(" + bt + domain + bt + ")";
+    return "Host(BKTK" + domain + "BKTK)";
+  }
+
+  static replaceBKTK(str) {
+    return str.replace(/BKTK/g, String.fromCharCode(96));
   }
 
   static loadConfig() {
@@ -40,7 +43,7 @@ class InstallService {
       domain_n8n: "n8n." + base,
       domain_webhook: "webhook." + base,
       domain_evolution: "evolution." + base,
-      email_ssl: config.email_ssl || "",
+      email_ssl: config.admin_email || "",
     };
   }
 
@@ -134,10 +137,11 @@ class InstallService {
   }
 
   static async deployStack(stackName, composeContent) {
+    const finalCompose = this.replaceBKTK(composeContent);
     try {
-      return await this.deployViaPortainer(stackName, composeContent);
+      return await this.deployViaPortainer(stackName, finalCompose);
     } catch {
-      return await DockerService.deployStack(stackName, composeContent);
+      return await DockerService.deployStack(stackName, finalCompose);
     }
   }
 
@@ -183,7 +187,6 @@ class InstallService {
 
     if (onLog) onLog("Aguardando PostgreSQL ficar pronto...", "info");
     await this.waitForService("postgres_postgres", 120000);
-    // Give postgres a moment to fully initialize
     await new Promise((r) => setTimeout(r, 5000));
 
     this.saveCredentials("postgres", {
@@ -196,7 +199,7 @@ class InstallService {
     if (onLog) onLog("PostgreSQL compartilhado instalado!", "success");
   }
 
-  static async createDatabase(dbName, dbUser, dbPassword, onLog) {
+  static async createDatabase(dbName, onLog) {
     const containers = DockerService.listContainers();
     const pgContainer = containers.find(
       (c) => c.name.toLowerCase().includes("postgres_postgres") && c.state === "running"
@@ -208,25 +211,12 @@ class InstallService {
     if (!pgPass) throw new Error("Senha do PostgreSQL não encontrada");
 
     try {
-      // Create database if not exists
       DockerService.execInContainer(
         pgContainer.id,
         "PGPASSWORD='" + pgPass + "' psql -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='" + dbName + "'\" | grep -q 1 || " +
         "PGPASSWORD='" + pgPass + "' psql -U postgres -c \"CREATE DATABASE " + dbName + "\""
       );
-      // Create user if not exists
-      DockerService.execInContainer(
-        pgContainer.id,
-        "PGPASSWORD='" + pgPass + "' psql -U postgres -tc \"SELECT 1 FROM pg_roles WHERE rolname='" + dbUser + "'\" | grep -q 1 || " +
-        "PGPASSWORD='" + pgPass + "' psql -U postgres -c \"CREATE USER " + dbUser + " WITH PASSWORD '" + dbPassword + "'\""
-      );
-      // Grant privileges
-      DockerService.execInContainer(
-        pgContainer.id,
-        "PGPASSWORD='" + pgPass + "' psql -U postgres -c \"GRANT ALL PRIVILEGES ON DATABASE " + dbName + " TO " + dbUser + "\""
-      );
 
-      // Update credentials with new database
       const allCreds = this.loadCredentials();
       if (allCreds.postgres && !allCreds.postgres.databases.includes(dbName)) {
         allCreds.postgres.databases.push(dbName);
@@ -248,21 +238,26 @@ class InstallService {
     );
   }
 
-  // ─── Compose Templates ───
+  // ══════════════════════════════════════
+  // COMPOSE TEMPLATES (comentados em PT-BR)
+  // ══════════════════════════════════════
 
   static getPostgresCompose(pgRootPass) {
+    var net = this.getNetworkName();
     return 'version: "3.8"\n' +
       "services:\n" +
       "  postgres:\n" +
-      "    image: postgres:16\n" +
+      "    image: postgres:16 ## Versão do PostgreSQL\n" +
       "    environment:\n" +
-      "      - POSTGRES_USER=postgres\n" +
-      "      - POSTGRES_PASSWORD=" + pgRootPass + "\n" +
+      "    ## 🔐 Credenciais do banco de dados\n" +
+      "      - POSTGRES_USER=postgres ## Usuário root do PostgreSQL\n" +
+      "      - POSTGRES_PASSWORD=" + pgRootPass + " ## Senha gerada automaticamente\n" +
+      "    ## 🕒 Fuso Horário\n" +
       "      - TZ=America/Sao_Paulo\n" +
       "    volumes:\n" +
-      "      - postgres_data:/var/lib/postgresql/data\n" +
+      "      - postgres_data:/var/lib/postgresql/data ## Persistência dos dados\n" +
       "    networks:\n" +
-      "      - network_public\n" +
+      "      - network_public ## Rede compartilhada entre serviços\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -282,33 +277,34 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: " + this.getNetworkName() + "\n";
+      "    name: " + net + "\n";
   }
 
   static getPortainerCompose(c) {
+    var net = this.getNetworkName();
     return 'version: "3.8"\n' +
       "services:\n" +
       "  agent:\n" +
-      "    image: portainer/agent:latest\n" +
+      "    image: portainer/agent:latest ## Agente do Portainer para comunicação com Docker\n" +
       "    volumes:\n" +
       "      - /var/run/docker.sock:/var/run/docker.sock\n" +
       "      - /var/lib/docker/volumes:/var/lib/docker/volumes\n" +
       "    networks:\n" +
-      "      - agent_network\n" +
+      "      - agent_network ## Rede interna do Portainer\n" +
       "    deploy:\n" +
-      "      mode: global\n" +
+      "      mode: global ## Roda em todos os nós do Swarm\n" +
       "      placement:\n" +
       "        constraints:\n" +
       "          - node.platform.os == linux\n" +
       "\n" +
       "  portainer:\n" +
-      "    image: portainer/portainer-ce:latest\n" +
+      "    image: portainer/portainer-ce:latest ## Painel de gerenciamento Docker\n" +
       "    command: -H tcp://tasks.agent:9001 --tlsskipverify\n" +
       "    volumes:\n" +
-      "      - portainer_data:/data\n" +
+      "      - portainer_data:/data ## Persistência das configurações\n" +
       "    networks:\n" +
-      "      - network_public\n" +
-      "      - agent_network\n" +
+      "      - network_public ## Rede pública (Traefik)\n" +
+      "      - agent_network ## Rede interna do agente\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -321,7 +317,7 @@ class InstallService {
       '        - "traefik.http.routers.portainer.entrypoints=websecure"\n' +
       '        - "traefik.http.routers.portainer.tls.certresolver=letsencryptresolver"\n' +
       '        - "traefik.http.services.portainer.loadbalancer.server.port=9000"\n' +
-      '        - "traefik.docker.network=' + this.getNetworkName() + '"\n' +
+      '        - "traefik.docker.network=' + net + '"\n' +
       "\n" +
       "volumes:\n" +
       "  portainer_data:\n" +
@@ -331,46 +327,64 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: " + this.getNetworkName() + "\n" +
+      "    name: " + net + "\n" +
       "  agent_network:\n" +
       "    driver: overlay\n" +
       "    attachable: true\n";
   }
 
   static getN8nSimpleCompose(c) {
-    var pgHost = "postgres_postgres";
+    var net = this.getNetworkName();
     return 'version: "3.8"\n' +
       "services:\n" +
       "  n8n_editor:\n" +
-      "    image: n8nio/n8n:latest\n" +
+      "    image: n8nio/n8n:latest ## Versão do N8N\n" +
+      "\n" +
+      "    networks:\n" +
+      "      - network_public ## Nome da rede interna\n" +
+      "\n" +
       "    environment:\n" +
+      "    ## 🗄️ Banco de Dados (PostgreSQL)\n" +
       "      - DB_TYPE=postgresdb\n" +
-      "      - DB_POSTGRESDB_HOST=" + pgHost + "\n" +
+      "      - DB_POSTGRESDB_DATABASE=n8n_db ## Nome do banco\n" +
+      "      - DB_POSTGRESDB_HOST=postgres_postgres ## Host do PostgreSQL (DNS do Swarm)\n" +
       "      - DB_POSTGRESDB_PORT=5432\n" +
-      "      - DB_POSTGRESDB_DATABASE=n8n_db\n" +
-      "      - DB_POSTGRESDB_USER=n8n_user\n" +
-      "      - DB_POSTGRESDB_PASSWORD=" + c.pg_password + "\n" +
-      "      - N8N_ENCRYPTION_KEY=" + c.encryption_key + "\n" +
+      "      - DB_POSTGRESDB_USER=postgres ## Usuário do banco\n" +
+      "      - DB_POSTGRESDB_PASSWORD=" + c.pg_password + " ## Senha do PostgreSQL\n" +
+      "\n" +
+      "    ## 🔐 Criptografia\n" +
+      "      - N8N_ENCRYPTION_KEY=" + c.encryption_key + " ## Chave de criptografia (NÃO altere depois de instalado)\n" +
+      "\n" +
+      "    ## 🌐 URLs e Configurações de Acesso\n" +
       "      - N8N_HOST=" + c.domain_n8n + "\n" +
       "      - N8N_EDITOR_BASE_URL=https://" + c.domain_n8n + "/\n" +
-      "      - WEBHOOK_URL=https://" + c.domain_n8n + "\n" +
+      "      - WEBHOOK_URL=https://" + c.domain_n8n + " ## URL dos webhooks\n" +
       "      - N8N_PROTOCOL=https\n" +
       "      - N8N_PROXY_HOPS=1\n" +
+      "\n" +
+      "    ## ⚙️ Ambiente de Execução\n" +
       "      - NODE_ENV=production\n" +
       "      - N8N_REINSTALL_MISSING_PACKAGES=true\n" +
-      "      - N8N_COMMUNITY_PACKAGES_ENABLED=true\n" +
+      "\n" +
+      "    ## 📦 Pacotes da Comunidade\n" +
+      "      - N8N_COMMUNITY_PACKAGES_ENABLED=true ## Permite instalar nodes da comunidade\n" +
       "      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true\n" +
       "      - N8N_PUBLIC_API_DISABLED=false\n" +
-      "      - GENERIC_TIMEZONE=America/Sao_Paulo\n" +
-      "      - TZ=America/Sao_Paulo\n" +
+      "\n" +
+      "    ## 📊 Métricas e Limpeza\n" +
       "      - N8N_METRICS=true\n" +
-      "      - EXECUTIONS_DATA_PRUNE=true\n" +
-      "      - EXECUTIONS_DATA_MAX_AGE=336\n" +
-      "      - NODE_FUNCTION_ALLOW_BUILTIN=*\n" +
+      "      - EXECUTIONS_DATA_PRUNE=true ## Limpa execuções antigas\n" +
+      "      - EXECUTIONS_DATA_MAX_AGE=336 ## Mantém execuções por 14 dias\n" +
+      "\n" +
+      "    ## 🧩 Funções Personalizadas\n" +
+      "      - NODE_FUNCTION_ALLOW_BUILTIN=* ## Permite todos os módulos Node.js\n" +
       "      - NODE_FUNCTION_ALLOW_EXTERNAL=moment,lodash\n" +
       "      - N8N_ONBOARDING_FLOW_DISABLED=true\n" +
-      "    networks:\n" +
-      "      - network_public\n" +
+      "\n" +
+      "    ## 🕒 Fuso Horário\n" +
+      "      - GENERIC_TIMEZONE=America/Sao_Paulo\n" +
+      "      - TZ=America/Sao_Paulo\n" +
+      "\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -393,23 +407,34 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: " + this.getNetworkName() + "\n";
+      "    name: " + net + "\n";
   }
 
   static getN8nQueueCompose(c) {
-    var pgHost = "postgres_postgres";
+    var net = this.getNetworkName();
+    var webhookDomain = c.domain_webhook || c.domain_n8n;
+
     var sharedEnv =
+      "    ## 🗄️ Banco de Dados (PostgreSQL)\n" +
       "      - DB_TYPE=postgresdb\n" +
-      "      - DB_POSTGRESDB_HOST=" + pgHost + "\n" +
+      "      - DB_POSTGRESDB_DATABASE=n8n_db ## Nome do banco\n" +
+      "      - DB_POSTGRESDB_HOST=postgres_postgres ## Host do PostgreSQL (DNS do Swarm)\n" +
       "      - DB_POSTGRESDB_PORT=5432\n" +
-      "      - DB_POSTGRESDB_DATABASE=n8n_db\n" +
-      "      - DB_POSTGRESDB_USER=n8n_user\n" +
-      "      - DB_POSTGRESDB_PASSWORD=" + c.pg_password + "\n" +
-      "      - N8N_ENCRYPTION_KEY=" + c.encryption_key + "\n" +
-      "      - EXECUTIONS_MODE=queue\n" +
-      "      - QUEUE_BULL_REDIS_HOST=n8n_n8n_redis\n" +
+      "      - DB_POSTGRESDB_USER=postgres ## Usuário do banco\n" +
+      "      - DB_POSTGRESDB_PASSWORD=" + c.pg_password + " ## Senha do PostgreSQL\n" +
+      "\n" +
+      "    ## 🔐 Criptografia\n" +
+      "      - N8N_ENCRYPTION_KEY=" + c.encryption_key + " ## Chave de criptografia (NÃO altere depois de instalado)\n" +
+      "\n" +
+      "    ## ⚙️ Modo de Execução\n" +
+      "      - EXECUTIONS_MODE=queue ## Modo fila (recomendado para produção)\n" +
+      "\n" +
+      "    ## 🔁 Redis (Fila de Execução)\n" +
+      "      - QUEUE_BULL_REDIS_HOST=n8n_n8n_redis ## Host do Redis (DNS do Swarm)\n" +
       "      - QUEUE_BULL_REDIS_PORT=6379\n" +
       "      - QUEUE_BULL_REDIS_DB=1\n" +
+      "\n" +
+      "    ## 🕒 Fuso Horário\n" +
       "      - GENERIC_TIMEZONE=America/Sao_Paulo\n" +
       "      - TZ=America/Sao_Paulo\n" +
       "      - N8N_FIX_MIGRATIONS=true\n";
@@ -417,6 +442,8 @@ class InstallService {
     var smtpEnv = "";
     if (c.smtp_host) {
       smtpEnv =
+        "\n" +
+        "    ## 📧 SMTP (Email)\n" +
         "      - N8N_SMTP_SENDER=" + (c.smtp_email || "") + "\n" +
         "      - N8N_SMTP_USER=" + (c.smtp_user || "") + "\n" +
         "      - N8N_SMTP_PASS=" + (c.smtp_pass || "") + "\n" +
@@ -425,38 +452,53 @@ class InstallService {
         "      - N8N_SMTP_SSL=false\n";
     }
 
-    var webhookDomain = c.domain_webhook || c.domain_n8n;
-
     return 'version: "3.8"\n' +
       "services:\n" +
+      "\n" +
+      "  ## ═══════════════════════════════════\n" +
+      "  ## Editor — Interface visual do n8n\n" +
+      "  ## ═══════════════════════════════════\n" +
       "  n8n_editor:\n" +
-      "    image: n8nio/n8n:latest\n" +
+      "    image: n8nio/n8n:latest ## Versão do N8N\n" +
       "    command: start\n" +
       "    networks:\n" +
-      "      - network_public\n" +
+      "      - network_public ## Nome da rede interna\n" +
       "    environment:\n" +
       sharedEnv +
+      "\n" +
+      "    ## 🌐 URLs e Configurações de Acesso\n" +
       "      - N8N_HOST=" + c.domain_n8n + "\n" +
       "      - N8N_EDITOR_BASE_URL=https://" + c.domain_n8n + "/\n" +
-      "      - WEBHOOK_URL=https://" + webhookDomain + "/\n" +
+      "      - WEBHOOK_URL=https://" + webhookDomain + "/ ## URL dos webhooks\n" +
       "      - N8N_PROTOCOL=https\n" +
       "      - N8N_PROXY_HOPS=1\n" +
       "      - NODE_ENV=production\n" +
-      "      - EXECUTIONS_TIMEOUT=3600\n" +
-      "      - EXECUTIONS_TIMEOUT_MAX=7200\n" +
-      "      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true\n" +
+      "\n" +
+      "    ## ⏱️ Timeouts\n" +
+      "      - EXECUTIONS_TIMEOUT=3600 ## Timeout de execução (1 hora)\n" +
+      "      - EXECUTIONS_TIMEOUT_MAX=7200 ## Timeout máximo (2 horas)\n" +
+      "      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true ## Execuções manuais vão para workers\n" +
+      "\n" +
+      "    ## 🤖 Runners (IA)\n" +
       "      - N8N_RUNNERS_ENABLED=true\n" +
       "      - N8N_RUNNERS_MODE=internal\n" +
+      "\n" +
+      "    ## 📦 Pacotes da Comunidade\n" +
       "      - N8N_REINSTALL_MISSING_PACKAGES=true\n" +
-      "      - N8N_COMMUNITY_PACKAGES_ENABLED=true\n" +
+      "      - N8N_COMMUNITY_PACKAGES_ENABLED=true ## Permite instalar nodes da comunidade\n" +
       "      - N8N_PUBLIC_API_DISABLED=false\n" +
+      "\n" +
+      "    ## 📊 Métricas e Limpeza\n" +
       "      - N8N_METRICS=true\n" +
-      "      - EXECUTIONS_DATA_PRUNE=true\n" +
-      "      - EXECUTIONS_DATA_MAX_AGE=336\n" +
-      "      - NODE_FUNCTION_ALLOW_BUILTIN=*\n" +
+      "      - EXECUTIONS_DATA_PRUNE=true ## Limpa execuções antigas\n" +
+      "      - EXECUTIONS_DATA_MAX_AGE=336 ## Mantém execuções por 14 dias\n" +
+      "\n" +
+      "    ## 🧩 Funções Personalizadas\n" +
+      "      - NODE_FUNCTION_ALLOW_BUILTIN=* ## Permite todos os módulos Node.js\n" +
       "      - NODE_FUNCTION_ALLOW_EXTERNAL=moment,lodash\n" +
       "      - N8N_ONBOARDING_FLOW_DISABLED=true\n" +
       smtpEnv +
+      "\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -477,18 +519,24 @@ class InstallService {
       '        - "traefik.http.services.n8n_editor.loadbalancer.server.port=5678"\n' +
       '        - "traefik.http.services.n8n_editor.loadbalancer.passHostHeader=1"\n' +
       "\n" +
+      "  ## ═══════════════════════════════════\n" +
+      "  ## Webhook — Processa webhooks recebidos\n" +
+      "  ## ═══════════════════════════════════\n" +
       "  n8n_webhook:\n" +
-      "    image: n8nio/n8n:latest\n" +
+      "    image: n8nio/n8n:latest ## Mesma versão do editor\n" +
       "    command: webhook\n" +
       "    networks:\n" +
       "      - network_public\n" +
       "    environment:\n" +
       sharedEnv +
+      "\n" +
+      "    ## 🌐 URLs\n" +
       "      - N8N_HOST=" + c.domain_n8n + "\n" +
       "      - N8N_EDITOR_BASE_URL=https://" + c.domain_n8n + "/\n" +
       "      - WEBHOOK_URL=https://" + webhookDomain + "/\n" +
       "      - N8N_PROTOCOL=https\n" +
       "      - NODE_ENV=production\n" +
+      "\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -509,16 +557,22 @@ class InstallService {
       '        - "traefik.http.services.n8n_webhook.loadbalancer.server.port=5678"\n' +
       '        - "traefik.http.services.n8n_webhook.loadbalancer.passHostHeader=1"\n' +
       "\n" +
+      "  ## ═══════════════════════════════════\n" +
+      "  ## Worker — Executa os workflows em background\n" +
+      "  ## ═══════════════════════════════════\n" +
       "  n8n_worker:\n" +
-      "    image: n8nio/n8n:latest\n" +
-      "    command: worker --concurrency=10\n" +
+      "    image: n8nio/n8n:latest ## Mesma versão do editor\n" +
+      "    command: worker --concurrency=10 ## Até 10 execuções simultâneas\n" +
       "    networks:\n" +
       "      - network_public\n" +
       "    environment:\n" +
       sharedEnv +
+      "\n" +
+      "    ## 📦 Pacotes (Worker precisa dos mesmos nodes)\n" +
       "      - N8N_REINSTALL_MISSING_PACKAGES=true\n" +
       "      - NODE_FUNCTION_ALLOW_BUILTIN=*\n" +
       "      - NODE_FUNCTION_ALLOW_EXTERNAL=moment,lodash\n" +
+      "\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -530,11 +584,14 @@ class InstallService {
       '          cpus: "1"\n' +
       "          memory: 1024M\n" +
       "\n" +
+      "  ## ═══════════════════════════════════\n" +
+      "  ## Redis — Fila de execuções\n" +
+      "  ## ═══════════════════════════════════\n" +
       "  n8n_redis:\n" +
-      "    image: redis:latest\n" +
+      "    image: redis:latest ## Redis para fila de execuções\n" +
       '    command: ["redis-server", "--appendonly", "yes", "--port", "6379"]\n' +
       "    volumes:\n" +
-      "      - n8n_redis:/data\n" +
+      "      - n8n_redis:/data ## Persistência da fila\n" +
       "    networks:\n" +
       "      - network_public\n" +
       "    deploy:\n" +
@@ -554,31 +611,43 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: " + this.getNetworkName() + "\n";
+      "    name: " + net + "\n";
   }
 
   static getEvolutionCompose(c) {
-    var pgHost = "postgres_postgres";
+    var net = this.getNetworkName();
     return 'version: "3.8"\n' +
       "services:\n" +
+      "\n" +
+      "  ## ═══════════════════════════════════\n" +
+      "  ## Evolution API — Integração WhatsApp\n" +
+      "  ## ═══════════════════════════════════\n" +
       "  evolution_api:\n" +
-      "    image: atendai/evolution-api:latest\n" +
+      "    image: atendai/evolution-api:latest ## Versão da Evolution API\n" +
       "    volumes:\n" +
-      "      - evolution_instances:/evolution/instances\n" +
+      "      - evolution_instances:/evolution/instances ## Persistência das instâncias WhatsApp\n" +
       "    networks:\n" +
-      "      - network_public\n" +
+      "      - network_public ## Nome da rede interna\n" +
       "    environment:\n" +
+      "\n" +
+      "    ## 🌐 URL do Servidor\n" +
       "      - SERVER_URL=https://" + c.domain_evolution + "\n" +
-      "      - AUTHENTICATION_API_KEY=" + c.evolution_key + "\n" +
+      "\n" +
+      "    ## 🔑 Autenticação da API\n" +
+      "      - AUTHENTICATION_API_KEY=" + c.evolution_key + " ## Chave da API (use para autenticar requisições)\n" +
       "      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true\n" +
+      "\n" +
+      "    ## ⚙️ Configurações Gerais\n" +
       "      - DEL_INSTANCE=false\n" +
       "      - QRCODE_LIMIT=1902\n" +
       "      - LANGUAGE=pt-BR\n" +
       "      - CONFIG_SESSION_PHONE_CLIENT=N8NLABZ\n" +
       "      - CONFIG_SESSION_PHONE_NAME=Chrome\n" +
+      "\n" +
+      "    ## 🗄️ Banco de Dados (PostgreSQL)\n" +
       "      - DATABASE_ENABLED=true\n" +
       "      - DATABASE_PROVIDER=postgresql\n" +
-      "      - DATABASE_CONNECTION_URI=postgresql://evolution_user:" + c.pg_password + "@" + pgHost + ":5432/evolution_db\n" +
+      "      - DATABASE_CONNECTION_URI=postgresql://postgres:" + c.pg_password + "@postgres_postgres:5432/evolution_db ## Conexão com PostgreSQL compartilhado\n" +
       "      - DATABASE_CONNECTION_CLIENT_NAME=evolution\n" +
       "      - DATABASE_SAVE_DATA_INSTANCE=true\n" +
       "      - DATABASE_SAVE_DATA_NEW_MESSAGE=true\n" +
@@ -587,6 +656,8 @@ class InstallService {
       "      - DATABASE_SAVE_DATA_CHATS=true\n" +
       "      - DATABASE_SAVE_DATA_LABELS=true\n" +
       "      - DATABASE_SAVE_DATA_HISTORIC=true\n" +
+      "\n" +
+      "    ## 🤖 Integrações habilitadas\n" +
       "      - N8N_ENABLED=true\n" +
       "      - EVOAI_ENABLED=true\n" +
       "      - OPENAI_ENABLED=true\n" +
@@ -594,21 +665,28 @@ class InstallService {
       "      - TYPEBOT_ENABLED=true\n" +
       "      - TYPEBOT_API_VERSION=latest\n" +
       "      - CHATWOOT_ENABLED=true\n" +
+      "\n" +
+      "    ## 🔁 Cache Redis\n" +
       "      - CACHE_REDIS_ENABLED=true\n" +
-      "      - CACHE_REDIS_URI=redis://evolution_evolution_redis:6379/1\n" +
+      "      - CACHE_REDIS_URI=redis://evolution_evolution_redis:6379/1 ## Redis dedicado para cache\n" +
       "      - CACHE_REDIS_PREFIX_KEY=evolution\n" +
       "      - CACHE_REDIS_SAVE_INSTANCES=false\n" +
       "      - CACHE_LOCAL_ENABLED=false\n" +
+      "\n" +
+      "    ## 🚫 Serviços desabilitados\n" +
       "      - S3_ENABLED=false\n" +
       "      - TELEMETRY=false\n" +
       "      - WEBSOCKET_ENABLED=false\n" +
       "      - RABBITMQ_ENABLED=false\n" +
       "      - WEBHOOK_GLOBAL_ENABLED=false\n" +
       "      - PROVIDER_ENABLED=false\n" +
+      "\n" +
+      "    ## 📱 WhatsApp Business\n" +
       "      - WA_BUSINESS_TOKEN_WEBHOOK=evolution\n" +
       "      - WA_BUSINESS_URL=https://graph.facebook.com\n" +
       "      - WA_BUSINESS_VERSION=v23.0\n" +
       "      - WA_BUSINESS_LANGUAGE=pt_BR\n" +
+      "\n" +
       "    deploy:\n" +
       "      mode: replicated\n" +
       "      replicas: 1\n" +
@@ -624,11 +702,14 @@ class InstallService {
       '        - "traefik.http.services.evolution.loadbalancer.server.port=8080"\n' +
       '        - "traefik.http.services.evolution.loadbalancer.passHostHeader=true"\n' +
       "\n" +
+      "  ## ═══════════════════════════════════\n" +
+      "  ## Redis — Cache da Evolution\n" +
+      "  ## ═══════════════════════════════════\n" +
       "  evolution_redis:\n" +
-      "    image: redis:latest\n" +
+      "    image: redis:latest ## Redis dedicado para cache da Evolution\n" +
       '    command: ["redis-server", "--appendonly", "yes", "--port", "6379"]\n' +
       "    volumes:\n" +
-      "      - evolution_redis:/data\n" +
+      "      - evolution_redis:/data ## Persistência do cache\n" +
       "    networks:\n" +
       "      - network_public\n" +
       "    deploy:\n" +
@@ -651,7 +732,7 @@ class InstallService {
       "networks:\n" +
       "  network_public:\n" +
       "    external: true\n" +
-      "    name: " + this.getNetworkName() + "\n";
+      "    name: " + net + "\n";
   }
 
   // ─── Portainer Admin Init ───
@@ -685,6 +766,37 @@ class InstallService {
       await new Promise((r) => setTimeout(r, 5000));
     }
     if (addLog) addLog("Portainer ainda inicializando. Configure o admin no primeiro acesso.", "info");
+  }
+
+  // ─── Update Service Image (Feature 1) ───
+
+  static async updateImage(toolId, version, onLog) {
+    const imageMap = {
+      n8n: { image: "n8nio/n8n", services: ["n8n_n8n_editor", "n8n_n8n_webhook", "n8n_n8n_worker"] },
+      evolution: { image: "atendai/evolution-api", services: ["evolution_evolution_api"] },
+      portainer: { image: "portainer/portainer-ce", services: ["portainer_portainer"] },
+    };
+
+    const tool = imageMap[toolId];
+    if (!tool) throw new Error("Ferramenta desconhecida: " + toolId);
+
+    const results = [];
+    for (const service of tool.services) {
+      try {
+        const fullImage = tool.image + ":" + version;
+        if (onLog) onLog("Atualizando " + service + " para " + fullImage + "...", "info");
+        DockerService.run(
+          "docker service update --image " + fullImage + " " + service,
+          { timeout: 300000 }
+        );
+        results.push({ service, success: true });
+        if (onLog) onLog(service + " atualizado!", "success");
+      } catch (err) {
+        results.push({ service, success: false, error: err.message });
+        if (onLog) onLog("Erro ao atualizar " + service + ": " + err.message, "error");
+      }
+    }
+    return results;
   }
 
   // ─── Core Install ───
@@ -726,13 +838,17 @@ class InstallService {
 
           const mode = config.n8n_mode || "simple";
           stackName = "n8n";
-          const n8nDbPass = this.genPass();
+
+          const pgCreds = this.loadCredentials();
+          const pgPass = pgCreds.postgres?.password;
+          if (!pgPass) throw new Error("Senha do PostgreSQL não encontrada");
+
           const encKey = this.genPass(32);
 
           addLog("Criando banco de dados n8n...", "info");
-          await this.createDatabase("n8n_db", "n8n_user", n8nDbPass, (text, type) => addLog(text, type));
+          await this.createDatabase("n8n_db", (text, type) => addLog(text, type));
 
-          const composeConfig = { ...config, pg_password: n8nDbPass, encryption_key: encKey };
+          const composeConfig = { ...config, pg_password: pgPass, encryption_key: encKey };
 
           if (mode === "queue") {
             addLog("Gerando configuração n8n (modo avançado com filas)...", "info");
@@ -744,7 +860,6 @@ class InstallService {
               domain_webhook: config.domain_webhook || config.domain_n8n,
               note: "Email e senha são criados no primeiro acesso ao n8n",
               mode: "queue",
-              db_password: n8nDbPass,
               encryption_key: encKey,
             };
           } else {
@@ -756,7 +871,6 @@ class InstallService {
               domain: config.domain_n8n,
               note: "Email e senha são criados no primeiro acesso ao n8n",
               mode: "simple",
-              db_password: n8nDbPass,
               encryption_key: encKey,
             };
           }
@@ -776,20 +890,22 @@ class InstallService {
           await this.ensurePostgres((text, type) => addLog(text, type));
 
           stackName = "evolution";
-          const evoDbPass = this.genPass();
+          const pgCreds2 = this.loadCredentials();
+          const pgPass2 = pgCreds2.postgres?.password;
+          if (!pgPass2) throw new Error("Senha do PostgreSQL não encontrada");
+
           const apiKey = config.evolution_key || this.genPass(32);
 
           addLog("Criando banco de dados Evolution...", "info");
-          await this.createDatabase("evolution_db", "evolution_user", evoDbPass, (text, type) => addLog(text, type));
+          await this.createDatabase("evolution_db", (text, type) => addLog(text, type));
 
           addLog("Gerando configuração Evolution API...", "info");
-          compose = this.getEvolutionCompose({ ...config, pg_password: evoDbPass, evolution_key: apiKey });
+          compose = this.getEvolutionCompose({ ...config, pg_password: pgPass2, evolution_key: apiKey });
           credentials = {
             base_url: "https://" + config.domain_evolution,
             manager_url: "https://" + config.domain_evolution + "/manager",
             domain: config.domain_evolution,
             api_key: apiKey,
-            db_password: evoDbPass,
           };
           break;
         }
@@ -808,7 +924,6 @@ class InstallService {
         addLog("Timeout aguardando serviço, mas o deploy foi iniciado.", "info");
       }
 
-      // Portainer: init admin + save config for API access
       if (toolId === "portainer") {
         await this.initPortainerAdmin(credentials.password, (text, type) => addLog(text, type));
         const cfg = this.loadConfig();
@@ -851,7 +966,6 @@ class InstallService {
     if (!name) throw new Error("Ferramenta desconhecida");
     const result = await DockerService.removeStack(name);
 
-    // Remove credentials
     const creds = this.loadCredentials();
     delete creds[toolId];
     fs.writeFileSync(CREDENTIALS_PATH, JSON.stringify(creds, null, 2));

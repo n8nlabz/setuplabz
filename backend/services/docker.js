@@ -178,6 +178,31 @@ class DockerService {
     };
   }
 
+  static getServiceEnv(serviceId) {
+    try {
+      const output = this.run(
+        "docker service inspect " + serviceId + " --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{.}}\n{{end}}'"
+      );
+      const env = {};
+      output.split("\n").filter(Boolean).forEach((line) => {
+        const eq = line.indexOf("=");
+        if (eq > 0) {
+          env[line.slice(0, eq)] = line.slice(eq + 1);
+        }
+      });
+      return env;
+    } catch {
+      return {};
+    }
+  }
+
+  static updateServiceEnv(serviceId, envVars) {
+    const args = Object.entries(envVars)
+      .map(([key, val]) => "--env-add " + key + "=" + val)
+      .join(" ");
+    return this.run("docker service update " + args + " " + serviceId, { timeout: 120000 });
+  }
+
   static ensureNetwork(name, driver = "overlay") {
     try {
       const nets = this.run("docker network ls --format '{{.Name}}'");

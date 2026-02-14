@@ -73,4 +73,50 @@ async function fetchCredentials() {
   return api('/credentials');
 }
 
-export { api, apiUpload, getToken, setToken, clearToken, connectWebSocket, fetchCredentials };
+async function fetchMetrics() {
+  return api('/system/metrics');
+}
+
+async function updateToolImage(toolId, version) {
+  return api(`/tools/${toolId}/update-image`, { method: 'POST', body: JSON.stringify({ version }) });
+}
+
+async function fetchContainerEnv(serviceId) {
+  return api(`/containers/${serviceId}/env`);
+}
+
+async function updateContainerEnv(serviceId, env) {
+  return api(`/containers/${serviceId}/env`, { method: 'POST', body: JSON.stringify({ env }) });
+}
+
+async function fetchContainerLogs(containerId, lines = 100) {
+  return api(`/containers/${containerId}/logs?lines=${lines}`);
+}
+
+async function systemCleanup(type) {
+  return api('/system/cleanup', { method: 'POST', body: JSON.stringify({ type }) });
+}
+
+async function fetchCleanupInfo() {
+  return api('/system/cleanup/info');
+}
+
+async function fetchEnvironments() {
+  return api('/environments');
+}
+
+async function createEnvironment(name, tools) {
+  return api('/environments', { method: 'POST', body: JSON.stringify({ name, tools }) });
+}
+
+async function destroyEnvironment(name) {
+  return api(`/environments/${name}`, { method: 'DELETE' });
+}
+
+export {
+  api, apiUpload, getToken, setToken, clearToken, connectWebSocket,
+  fetchCredentials, fetchMetrics, updateToolImage,
+  fetchContainerEnv, updateContainerEnv, fetchContainerLogs,
+  systemCleanup, fetchCleanupInfo,
+  fetchEnvironments, createEnvironment, destroyEnvironment,
+};

@@ -45,11 +45,16 @@ function validateLogin(email, password) {
 }
 
 function authMiddleware(req, res, next) {
+  let token;
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Bearer ")) {
+  if (auth && auth.startsWith("Bearer ")) {
+    token = auth.slice(7);
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+  if (!token) {
     return res.status(401).json({ error: "Token não fornecido" });
   }
-  const token = auth.slice(7);
   const payload = verifyJWT(token);
   if (!payload) return res.status(403).json({ error: "Token inválido ou expirado" });
   req.user = payload;

@@ -12,7 +12,10 @@ const backupRoutes = require("./routes/backup");
 const authRoutes = require("./routes/auth");
 const systemRoutes = require("./routes/system");
 const credentialsRoutes = require("./routes/credentials");
+const toolsRoutes = require("./routes/tools");
+const environmentsRoutes = require("./routes/environments");
 const BackupService = require("./services/backup");
+const MetricsService = require("./services/metrics");
 
 const app = express();
 expressWs(app);
@@ -53,6 +56,8 @@ app.use("/api/containers", authMiddleware, containersRoutes);
 app.use("/api/backup", authMiddleware, backupRoutes);
 app.use("/api/system", authMiddleware, systemRoutes);
 app.use("/api/credentials", authMiddleware, credentialsRoutes);
+app.use("/api/tools", authMiddleware, toolsRoutes);
+app.use("/api/environments", authMiddleware, environmentsRoutes);
 
 // WebSocket for real-time logs
 app.ws("/api/ws/logs", (ws, req) => {
@@ -72,7 +77,7 @@ app.get("*", (req, res) => {
   } else {
     res.json({
       name: "N8N LABZ Setup Panel API",
-      version: "2.0.0",
+      version: "2.1.0",
       status: "running",
       docs: "Frontend not built. Run: npm run build:frontend",
     });
@@ -88,13 +93,16 @@ app.use((err, req, res, next) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log("");
   console.log("  ╔══════════════════════════════════════════╗");
-  console.log("  ║     N8N LABZ Setup Panel v2.0            ║");
+  console.log("  ║     N8N LABZ Setup Panel v2.1            ║");
   console.log(`  ║     Porta: ${PORT}                          ║`);
   console.log("  ╚══════════════════════════════════════════╝");
   console.log("");
 
   // Start backup scheduler
   BackupService.initScheduler();
+
+  // Start metrics collection
+  MetricsService.startCollecting(app.locals.broadcast);
 });
 
 module.exports = app;
