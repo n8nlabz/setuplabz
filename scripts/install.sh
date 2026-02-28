@@ -740,34 +740,39 @@ fi
 # PORTAINER — auto-add environment
 # ══════════════════════════════════════
 if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "portainer"; then
-  PORTAINER_PASSWORD="${ADMIN_PASS}"
+  PORTAINER_DOMAIN=$(jq -r '.portainer.domain // empty' "$INSTALL_DIR/credentials.json" 2>/dev/null)
+  PORTAINER_PASSWORD=$(jq -r '.portainer.password // empty' "$INSTALL_DIR/credentials.json" 2>/dev/null)
 
-  echo -e "  ${CYAN}Configurando ambiente do Portainer...${NC}"
+  if [ -z "$PORTAINER_DOMAIN" ]; then
+    PORTAINER_DOMAIN="portainer.${BASE_DOMAIN}"
+  fi
+  if [ -z "$PORTAINER_PASSWORD" ]; then
+    PORTAINER_PASSWORD="${ADMIN_PASS}"
+  fi
+
+  echo -e "  ${CYAN}Configurando ambiente do Portainer via ${PORTAINER_DOMAIN}...${NC}"
 
   PORTAINER_READY=""
-  for i in $(seq 1 20); do
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:9000/api/status 2>/dev/null || echo "000")
+  for i in $(seq 1 30); do
+    HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --max-time 5 "https://${PORTAINER_DOMAIN}/api/status" 2>/dev/null || echo "000")
     if [ "$HTTP_CODE" = "200" ]; then
       PORTAINER_READY="1"
       break
     fi
-    sleep 5
+    sleep 10
   done
 
   if [ -n "$PORTAINER_READY" ]; then
-    # Criar admin (ignora se ja existe)
-    curl -s -X POST http://localhost:9000/api/users/admin/init \
+    curl -k -s -X POST "https://${PORTAINER_DOMAIN}/api/users/admin/init" \
       -H "Content-Type: application/json" \
       -d "{\"Username\":\"admin\",\"Password\":\"${PORTAINER_PASSWORD}\"}" >/dev/null 2>&1 || true
 
-    # Autenticar
-    PORTAINER_TOKEN=$(curl -s -X POST http://localhost:9000/api/auth \
+    PORTAINER_TOKEN=$(curl -k -s -X POST "https://${PORTAINER_DOMAIN}/api/auth" \
       -H "Content-Type: application/json" \
-      -d "{\"username\":\"admin\",\"password\":\"${PORTAINER_PASSWORD}\"}" 2>/dev/null | grep -o '"jwt":"[^"]*"' | cut -d'"' -f4)
+      -d "{\"username\":\"admin\",\"password\":\"${PORTAINER_PASSWORD}\"}" 2>/dev/null | jq -r '.jwt')
 
-    # Adicionar environment local
-    if [ -n "$PORTAINER_TOKEN" ]; then
-      curl -s -X POST http://localhost:9000/api/endpoints \
+    if [ -n "$PORTAINER_TOKEN" ] && [ "$PORTAINER_TOKEN" != "null" ]; then
+      curl -k -s -X POST "https://${PORTAINER_DOMAIN}/api/endpoints" \
         -H "Authorization: Bearer ${PORTAINER_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{"Name":"local","EndpointCreationType":2,"URL":"tcp://tasks.portainer_agent:9001","TLS":true,"TLSSkipVerify":true}' >/dev/null 2>&1 || true

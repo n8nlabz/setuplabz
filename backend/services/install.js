@@ -251,8 +251,6 @@ class InstallService {
       "  portainer:\n" +
       "    image: portainer/portainer-ce:latest ## Painel de gerenciamento Docker\n" +
       "    command: -H tcp://tasks.agent:9001 --tlsskipverify\n" +
-      "    ports:\n" +
-      "      - \"9000:9000\"\n" +
       "    volumes:\n" +
       "      - portainer_data:/data ## Persistência das configurações\n" +
       "    networks:\n" +
