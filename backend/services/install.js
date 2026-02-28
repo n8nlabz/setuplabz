@@ -577,7 +577,7 @@ class InstallService {
       "  ## Evolution API — Integração WhatsApp\n" +
       "  ## ═══════════════════════════════════\n" +
       "  evolution_api:\n" +
-      "    image: atendai/evolution-api:latest ## Versão da Evolution API\n" +
+      "    image: evoapicloud/evolution-api:latest ## Versão da Evolution API\n" +
       "    volumes:\n" +
       "      - evolution_instances:/evolution/instances ## Persistência das instâncias WhatsApp\n" +
       "    networks:\n" +
@@ -782,7 +782,7 @@ class InstallService {
   static async updateImage(toolId, version, onLog) {
     const imageMap = {
       n8n: { image: "n8nio/n8n", services: ["n8n_n8n_editor", "n8n_n8n_webhook", "n8n_n8n_worker"] },
-      evolution: { image: "atendai/evolution-api", services: ["evolution_evolution_api"] },
+      evolution: { image: "evoapicloud/evolution-api", services: ["evolution_evolution_api"] },
       portainer: { image: "portainer/portainer-ce", services: ["portainer_portainer"] },
     };
 
