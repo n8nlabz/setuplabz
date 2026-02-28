@@ -250,7 +250,7 @@ class InstallService {
       "\n" +
       "  portainer:\n" +
       "    image: portainer/portainer-ce:latest ## Painel de gerenciamento Docker\n" +
-      "    command: -H tcp://tasks.portainer_agent:9001 --tlsskipverify\n" +
+      "    command: -H tcp://tasks.agent:9001 --tlsskipverify\n" +
       "    volumes:\n" +
       "      - portainer_data:/data ## Persistência das configurações\n" +
       "    networks:\n" +
@@ -715,7 +715,6 @@ class InstallService {
             try { fs.unlinkSync(payloadPath); } catch {}
           }
 
-          await new Promise((r) => setTimeout(r, 15000));
           await this.addPortainerEnvironment(portainerUrl, password, addLog);
           return;
         }
@@ -726,43 +725,51 @@ class InstallService {
   }
 
   static async addPortainerEnvironment(portainerUrl, password, addLog) {
-    try {
-      const authPayload = JSON.stringify({ Username: "admin", Password: password });
-      const authPath = "/tmp/portainer-auth.json";
-      fs.writeFileSync(authPath, authPayload);
-      const authResult = DockerService.run(
-        "curl -s -X POST " + portainerUrl + "/api/auth " +
-        '-H "Content-Type: application/json" ' +
-        "-d @" + authPath
-      );
-      try { fs.unlinkSync(authPath); } catch {}
+    if (addLog) addLog("Configurando environment do Portainer...", "info");
 
-      const jwt = JSON.parse(authResult).jwt;
-      if (!jwt) {
-        if (addLog) addLog("Não foi possível obter token do Portainer.", "info");
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const statusCheck = DockerService.run(
+          'curl -s -o /dev/null -w "%{http_code}" --max-time 5 ' + portainerUrl + "/api/status"
+        );
+        if (statusCheck.trim() !== "200") continue;
+
+        const authPayload = JSON.stringify({ username: "admin", password: password });
+        const authPath = "/tmp/portainer-auth.json";
+        fs.writeFileSync(authPath, authPayload);
+        const authResult = DockerService.run(
+          "curl -s -X POST " + portainerUrl + "/api/auth " +
+          '-H "Content-Type: application/json" ' +
+          "-d @" + authPath
+        );
+        try { fs.unlinkSync(authPath); } catch {}
+
+        let jwt;
+        try { jwt = JSON.parse(authResult).jwt; } catch {}
+        if (!jwt) continue;
+
+        const envPayload = JSON.stringify({
+          Name: "local",
+          EndpointCreationType: 2,
+          URL: "tcp://tasks.portainer_agent:9001",
+          TLS: true,
+          TLSSkipVerify: true,
+        });
+        const envPath = "/tmp/portainer-env.json";
+        fs.writeFileSync(envPath, envPayload);
+        DockerService.run(
+          "curl -s -X POST " + portainerUrl + "/api/endpoints " +
+          '-H "Content-Type: application/json" ' +
+          '-H "Authorization: Bearer ' + jwt + '" ' +
+          "-d @" + envPath
+        );
+        try { fs.unlinkSync(envPath); } catch {}
+        if (addLog) addLog("Environment 'local' adicionado ao Portainer!", "success");
         return;
-      }
-
-      const envPayload = JSON.stringify({
-        Name: "local",
-        EndpointCreationType: 2,
-        URL: "tcp://tasks.portainer_agent:9001",
-        TLS: true,
-        TLSSkipVerify: true,
-      });
-      const envPath = "/tmp/portainer-env.json";
-      fs.writeFileSync(envPath, envPayload);
-      DockerService.run(
-        "curl -s -X POST " + portainerUrl + "/api/endpoints " +
-        '-H "Content-Type: application/json" ' +
-        '-H "Authorization: Bearer ' + jwt + '" ' +
-        "-d @" + envPath
-      );
-      try { fs.unlinkSync(envPath); } catch {}
-      if (addLog) addLog("Environment 'local' adicionado ao Portainer!", "success");
-    } catch (err) {
-      if (addLog) addLog("Aviso ao adicionar environment: " + err.message, "info");
+      } catch {}
     }
+    if (addLog) addLog("Nao foi possivel adicionar environment automaticamente. Adicione manualmente no Portainer.", "info");
   }
 
   // ─── Update Service Image ───
