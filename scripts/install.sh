@@ -774,8 +774,13 @@ if docker service ls --format '{{.Name}}' 2>/dev/null | grep -qi "portainer"; th
     if [ -n "$PORTAINER_TOKEN" ] && [ "$PORTAINER_TOKEN" != "null" ]; then
       curl -k -s -X POST "https://${PORTAINER_DOMAIN}/api/endpoints" \
         -H "Authorization: Bearer ${PORTAINER_TOKEN}" \
-        -H "Content-Type: application/json" \
-        -d '{"Name":"local","EndpointCreationType":2,"URL":"tcp://tasks.portainer_agent:9001","TLS":true,"TLSSkipVerify":true}' >/dev/null 2>&1 || true
+        -F "Name=primary" \
+        -F "EndpointCreationType=2" \
+        -F "URL=tcp://tasks.portainer_agent:9001" \
+        -F "GroupID=1" \
+        -F "TLS=true" \
+        -F "TLSSkipVerify=true" \
+        -F "TLSSkipClientVerify=true" >/dev/null 2>&1 || true
       echo -e "  ${GREEN}Ambiente do Portainer configurado automaticamente${NC}"
     else
       echo -e "  ${YELLOW}Nao foi possivel configurar o ambiente do Portainer automaticamente${NC}"
