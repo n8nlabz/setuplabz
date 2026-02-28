@@ -250,7 +250,7 @@ class InstallService {
       "\n" +
       "  portainer:\n" +
       "    image: portainer/portainer-ce:latest ## Painel de gerenciamento Docker\n" +
-      "    command: -H tcp://tasks.agent:9001 --tlsskipverify\n" +
+      "    command: -H tcp://tasks.portainer_agent:9001 --tlsskipverify\n" +
       "    volumes:\n" +
       "      - portainer_data:/data ## Persistência das configurações\n" +
       "    networks:\n" +
@@ -714,12 +714,55 @@ class InstallService {
           } finally {
             try { fs.unlinkSync(payloadPath); } catch {}
           }
+
+          await new Promise((r) => setTimeout(r, 15000));
+          await this.addPortainerEnvironment(portainerUrl, password, addLog);
           return;
         }
       } catch {}
       await new Promise((r) => setTimeout(r, 5000));
     }
     if (addLog) addLog("Portainer ainda inicializando. Configure o admin no primeiro acesso.", "info");
+  }
+
+  static async addPortainerEnvironment(portainerUrl, password, addLog) {
+    try {
+      const authPayload = JSON.stringify({ Username: "admin", Password: password });
+      const authPath = "/tmp/portainer-auth.json";
+      fs.writeFileSync(authPath, authPayload);
+      const authResult = DockerService.run(
+        "curl -s -X POST " + portainerUrl + "/api/auth " +
+        '-H "Content-Type: application/json" ' +
+        "-d @" + authPath
+      );
+      try { fs.unlinkSync(authPath); } catch {}
+
+      const jwt = JSON.parse(authResult).jwt;
+      if (!jwt) {
+        if (addLog) addLog("Não foi possível obter token do Portainer.", "info");
+        return;
+      }
+
+      const envPayload = JSON.stringify({
+        Name: "local",
+        EndpointCreationType: 2,
+        URL: "tcp://tasks.portainer_agent:9001",
+        TLS: true,
+        TLSSkipVerify: true,
+      });
+      const envPath = "/tmp/portainer-env.json";
+      fs.writeFileSync(envPath, envPayload);
+      DockerService.run(
+        "curl -s -X POST " + portainerUrl + "/api/endpoints " +
+        '-H "Content-Type: application/json" ' +
+        '-H "Authorization: Bearer ' + jwt + '" ' +
+        "-d @" + envPath
+      );
+      try { fs.unlinkSync(envPath); } catch {}
+      if (addLog) addLog("Environment 'local' adicionado ao Portainer!", "success");
+    } catch (err) {
+      if (addLog) addLog("Aviso ao adicionar environment: " + err.message, "info");
+    }
   }
 
   // ─── Update Service Image ───
