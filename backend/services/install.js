@@ -715,12 +715,66 @@ class InstallService {
             try { fs.unlinkSync(payloadPath); } catch {}
           }
 
-          return;
+          return true;
         }
       } catch {}
       await new Promise((r) => setTimeout(r, 5000));
     }
     if (addLog) addLog("Portainer ainda inicializando. Configure o admin no primeiro acesso.", "info");
+    return false;
+  }
+
+  static async addPortainerEnvironment(portainerDomain, password, addLog) {
+    const baseUrl = "https://" + portainerDomain;
+    if (addLog) addLog("Configurando environment do Portainer...", "info");
+
+    for (let i = 0; i < 30; i++) {
+      try {
+        const status = DockerService.run(
+          'curl -k -s -o /dev/null -w "%{http_code}" --max-time 5 "' + baseUrl + '/api/status"'
+        );
+        if (status.trim() === "200") break;
+      } catch {}
+      if (i === 29) {
+        if (addLog) addLog("Portainer nao respondeu via HTTPS. Configure o environment manualmente.", "info");
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 10000));
+    }
+
+    try {
+      const authPayload = JSON.stringify({ username: "admin", password: password });
+      const authPath = "/tmp/portainer-auth.json";
+      fs.writeFileSync(authPath, authPayload);
+      const authResult = DockerService.run(
+        'curl -k -s -X POST "' + baseUrl + '/api/auth" ' +
+        '-H "Content-Type: application/json" ' +
+        "-d @" + authPath
+      );
+      try { fs.unlinkSync(authPath); } catch {}
+
+      let jwt;
+      try { jwt = JSON.parse(authResult).jwt; } catch {}
+      if (!jwt) {
+        if (addLog) addLog("Nao foi possivel autenticar no Portainer.", "info");
+        return;
+      }
+
+      DockerService.run(
+        'curl -k -s -X POST "' + baseUrl + '/api/endpoints" ' +
+        '-H "Authorization: Bearer ' + jwt + '" ' +
+        '-F "Name=primary" ' +
+        '-F "EndpointCreationType=2" ' +
+        '-F "URL=tcp://tasks.portainer_agent:9001" ' +
+        '-F "GroupID=1" ' +
+        '-F "TLS=true" ' +
+        '-F "TLSSkipVerify=true" ' +
+        '-F "TLSSkipClientVerify=true"'
+      );
+      if (addLog) addLog("Environment 'primary' adicionado ao Portainer!", "success");
+    } catch (err) {
+      if (addLog) addLog("Aviso ao adicionar environment: " + err.message, "info");
+    }
   }
 
   // ─── Update Service Image ───
@@ -907,12 +961,16 @@ class InstallService {
       }
 
       if (toolId === "portainer") {
-        await this.initPortainerAdmin(credentials.password, (text, type) => addLog(text, type));
+        const adminOk = await this.initPortainerAdmin(credentials.password, (text, type) => addLog(text, type));
         const cfg = this.loadConfig();
         cfg.portainer_domain = credentials.domain;
         cfg.portainer_username = "admin";
         cfg.portainer_password = credentials.password;
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+
+        if (adminOk) {
+          await this.addPortainerEnvironment(credentials.domain, credentials.password, (text, type) => addLog(text, type));
+        }
       }
 
       this.saveCredentials(toolId, credentials);
