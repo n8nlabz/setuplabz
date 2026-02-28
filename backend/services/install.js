@@ -715,61 +715,12 @@ class InstallService {
             try { fs.unlinkSync(payloadPath); } catch {}
           }
 
-          await this.addPortainerEnvironment(portainerUrl, password, addLog);
           return;
         }
       } catch {}
       await new Promise((r) => setTimeout(r, 5000));
     }
     if (addLog) addLog("Portainer ainda inicializando. Configure o admin no primeiro acesso.", "info");
-  }
-
-  static async addPortainerEnvironment(portainerUrl, password, addLog) {
-    if (addLog) addLog("Configurando environment do Portainer...", "info");
-
-    for (let attempt = 0; attempt < 12; attempt++) {
-      await new Promise((r) => setTimeout(r, 5000));
-      try {
-        const statusCheck = DockerService.run(
-          'curl -s -o /dev/null -w "%{http_code}" --max-time 5 ' + portainerUrl + "/api/status"
-        );
-        if (statusCheck.trim() !== "200") continue;
-
-        const authPayload = JSON.stringify({ username: "admin", password: password });
-        const authPath = "/tmp/portainer-auth.json";
-        fs.writeFileSync(authPath, authPayload);
-        const authResult = DockerService.run(
-          "curl -s -X POST " + portainerUrl + "/api/auth " +
-          '-H "Content-Type: application/json" ' +
-          "-d @" + authPath
-        );
-        try { fs.unlinkSync(authPath); } catch {}
-
-        let jwt;
-        try { jwt = JSON.parse(authResult).jwt; } catch {}
-        if (!jwt) continue;
-
-        const envPayload = JSON.stringify({
-          Name: "local",
-          EndpointCreationType: 2,
-          URL: "tcp://tasks.portainer_agent:9001",
-          TLS: true,
-          TLSSkipVerify: true,
-        });
-        const envPath = "/tmp/portainer-env.json";
-        fs.writeFileSync(envPath, envPayload);
-        DockerService.run(
-          "curl -s -X POST " + portainerUrl + "/api/endpoints " +
-          '-H "Content-Type: application/json" ' +
-          '-H "Authorization: Bearer ' + jwt + '" ' +
-          "-d @" + envPath
-        );
-        try { fs.unlinkSync(envPath); } catch {}
-        if (addLog) addLog("Environment 'local' adicionado ao Portainer!", "success");
-        return;
-      } catch {}
-    }
-    if (addLog) addLog("Nao foi possivel adicionar environment automaticamente. Adicione manualmente no Portainer.", "info");
   }
 
   // ─── Update Service Image ───
